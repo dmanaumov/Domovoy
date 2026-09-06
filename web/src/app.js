@@ -4,7 +4,10 @@
 
 const settings = {
   get localUrl() { return localStorage.getItem('domovoy.localUrl') || ''; },
-  get cloudUrl() { return localStorage.getItem('domovoy.cloudUrl') || ''; },
+  // Если облачный адрес не задан явно — используем адрес, с которого сама
+  // страница загружена. Так работает из коробки: страницу отдаёт cloud-relay,
+  // значит именно он и есть облачный сервер, вручную вписывать нечего.
+  get cloudUrl() { return localStorage.getItem('domovoy.cloudUrl') || location.origin; },
   get token() { return localStorage.getItem('domovoy.token') || ''; },
   save({ localUrl, cloudUrl, token }) {
     localStorage.setItem('domovoy.localUrl', localUrl || '');
@@ -111,6 +114,8 @@ class CloudConnection {
   constructor(baseUrl, token) {
     const wsUrl = baseUrl.replace(/\/$/, '').replace(/^http/, 'ws');
     this.ws = new WebSocket(`${wsUrl}/client?token=${encodeURIComponent(token)}`);
+    this._connected = false;
+    this.ws.addEventListener('open', () => { this._connected = true; });
   }
 
   onUpdate(cb, onHomeStatus) {
@@ -119,6 +124,13 @@ class CloudConnection {
       if (msg.type === 'state') cb(msg.devices);
       if (msg.type === 'home-status' && onHomeStatus) onHomeStatus(msg.online);
     });
+  }
+
+  // Срабатывает, если соединение так и не открылось (неверный токен / адрес) —
+  // сервер обрывает handshake, браузер даёт это увидеть только через error/close.
+  onAuthFailure(cb) {
+    this.ws.addEventListener('close', () => { if (!this._connected) cb(); });
+    this.ws.addEventListener('error', () => { if (!this._connected) cb(); });
   }
 
   async sendCommand(deviceId, action) {
@@ -156,12 +168,22 @@ async function connect() {
     return;
   }
 
+  if (!settings.token) {
+    setStatus('offline');
+    devicesEl.innerHTML = '<p class="hint">Открой настройки (⚙) и вставь токен — тот самый CLIENT_TOKEN, который задан в переменных окружения cloud-relay в Dokploy.</p>';
+    return;
+  }
+
   if (settings.cloudUrl) {
     currentConn = new CloudConnection(settings.cloudUrl, settings.token);
     currentConn.onUpdate(
       (devices) => { currentDevices = devices; rerender(); },
       (online) => setStatus(online ? 'cloud' : 'offline'),
     );
+    currentConn.onAuthFailure(() => {
+      setStatus('offline');
+      devicesEl.innerHTML = '<p class="hint">Не удалось подключиться к облаку — проверь токен в настройках (⚙) и что он совпадает с CLIENT_TOKEN в Dokploy.</p>';
+    });
     setStatus('cloud');
     return;
   }
