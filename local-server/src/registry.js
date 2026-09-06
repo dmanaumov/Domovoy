@@ -178,7 +178,11 @@ class DeviceRegistry extends EventEmitter {
     const result = [];
     for (const [deviceid, lan] of this.lanDevices) {
       const cloud = this.cloudDevices.get(deviceid);
-      const offline = !lan.lastSeen || (now - lan.lastSeen > LAN_STALE_MS);
+      // Устройство «в сети», если его недавно видели в LAN (mDNS/TCP)
+      // ЛИБО облако eWeLink подтверждает online. Облачный флаг — резерв
+      // для случаев, когда mDNS в Docker не успел/не может отработать.
+      const lanAlive = !!lan.lastSeen && (now - lan.lastSeen <= LAN_STALE_MS);
+      const offline = !lanAlive && cloud?.online !== true;
       result.push({
         deviceid,
         id: `ew-${deviceid}`,
@@ -196,9 +200,10 @@ class DeviceRegistry extends EventEmitter {
         protocol: 'ewelink-lan',
       });
     }
-    // устройства из облака, которые прямо сейчас не в mDNS (offline)
+    // устройства из облака, которых нет в mDNS (offline/ещё не обнаружили)
     for (const [deviceid, cloud] of this.cloudDevices) {
       if (this.lanDevices.has(deviceid)) continue;
+      const offline = cloud.online !== true;
       result.push({
         deviceid,
         id: `ew-${deviceid}`,
@@ -212,7 +217,8 @@ class DeviceRegistry extends EventEmitter {
         home: cloud.home || null,
         room: cloud.room || null,
         protocol: 'ewelink-lan',
-        offline: true,
+        offline,
+        stateNote: offline ? null : 'online-в-облаке',
       });
     }
     return result;

@@ -12,29 +12,35 @@ services:
   mosquitto:
     image: ghcr.io/dmanaumov/domovoy-mosquitto:latest
     restart: unless-stopped
+    # host-сеть: mosquitto не в изолированном бридже, а на хосте NAS —
+    # чтобы local-server (тоже в host) мог достучаться по localhost.
+    network_mode: host
     volumes:
       - mosquitto-data:/mosquitto/data
-    ports:
-      - "1883:1883"
 
   local-server:
     image: ghcr.io/dmanaumov/domovoy-local-server:latest
     restart: unless-stopped
+    # КРИТИЧНО: mDNS-обнаружение Sonoff (eWeLink) работает по multicast
+    # UDP 5353, который НЕ пробрасывается через bridge-сеть Docker.
+    # В host-сети контейнер видит LAN-сеть NAS как обычная программа —
+    # mDNS и прямое управление устройствами заработают.
+    network_mode: host
     depends_on:
       - mosquitto
     environment:
       PORT: "3000"
-      MQTT_URL: "mqtt://mosquitto:1883"
+      MQTT_URL: "mqtt://localhost:1883"
       LOCAL_TOKEN: "ЗАМЕНИ-НА-СВОЙ-LOCAL_TOKEN"
       RELAY_URL: "ЗАМЕНИ-НА-wss://твой-домен-релея"
       RELAY_TOKEN: "ЗАМЕНИ-НА-СВОЙ-RELAY_TOKEN"
-    ports:
-      - "3000:3000"
     volumes:
       # Сессия eWeLink (data/ewelink-session.json) и сгенерированный LOCAL_TOKEN
       # живут в /app/data. Без volume они пропадали бы при каждом пересоздании
       # контейнера — и eWeLink пришлось бы настраивать заново.
       - local-server-data:/app/data
+    # ports НЕТ: в host-сети порты пробрасывать не нужно (и они игнорируются),
+    # сервер слушает 3000 прямо на хосте NAS.
 
 volumes:
   mosquitto-data:
