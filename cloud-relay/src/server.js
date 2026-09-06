@@ -17,6 +17,22 @@ let homeSocket = null;
 let lastState = { devices: [] };
 const clientSockets = new Set();
 
+// Heartbeat «дома»: пока живой канал отвечает на ping, он не вытесняется
+// (решает пинг-понг между NAS и dev-машиной с одним RELAY_TOKEN). Если же
+// подключённый сервер реально умер/перезагрузился и перестал отвечать —
+// закрываем его и освобождаем слот для настоящего «дома».
+const HOME_PING_INTERVAL_MS = 5000;
+setInterval(() => {
+  if (!homeSocket) return;
+  if (homeSocket.isAlive === false) {
+    console.log('[relay] дом не отвечает на ping — закрываю соединение');
+    homeSocket.terminate();
+    return;
+  }
+  homeSocket.isAlive = false;
+  homeSocket.ping();
+}, HOME_PING_INTERVAL_MS);
+
 // Простая админ-страница со списком зарегистрированных инсталляций.
 // Сама страница не содержит секретов — токен (RELAY_TOKEN) вводится
 // в браузере и хранится только в его localStorage, запросы идут к уже
@@ -166,12 +182,31 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 function handleHome(ws) {
+  // Разрешаем ОДНО активное соединение «дома». Раньше новое подключение
+  // закрывало предыдущее — и если два сервера (например NAS и dev-машина)
+  // используют один RELAY_TOKEN, они «пинг-понгом» выбивали друг друга:
+  // релей каждые reconnectDelay переключался с одного списка на другой.
+  // Теперь занятый живой канал не вытесняется — дубль просто закрываем.
+  // Канал без ответа на ping (сервер умер/перезагрузился) освобождается
+  // heartbeat-интервалом выше, и следующее подключение станет активным.
+  if (homeSocket && homeSocket.readyState === homeSocket.OPEN) {
+    console.log('[relay] дом уже подключён — игнорирую дублирующее соединение');
+    ws.send(JSON.stringify({ type: 'error', error: 'home_already_connected' }));
+    ws.close();
+    return;
+  }
+
   console.log('[relay] дом подключился');
-  if (homeSocket) homeSocket.close(); // разрешаем только одно активное домашнее соединение
+  ws.isAlive = true;
   homeSocket = ws;
   broadcastHomeStatus(true);
 
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
   ws.on('message', (raw) => {
+    ws.isAlive = true;
     let msg;
     try {
       msg = JSON.parse(raw.toString());

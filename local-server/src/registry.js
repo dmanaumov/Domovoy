@@ -1,28 +1,73 @@
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import path from 'node:path';
 import { discoverDevices } from './discovery.js';
 import { fetchEWelinkDevices } from './ewelink-api.js';
 
 /**
- * Динамический реестр устройств. Лёгкий, держит всё в памяти, реагирует
- * на mDNS (что в сети прямо сейчас) + облако eWeLink (devicekey, имена).
+ * Динамический реестр устройств. Держит всё в памяти (быстрый доступ для
+ * hub/API), а также периодически сохраняет снапшот на диск (path можно
+ * задать через env REGISTRY_FILE) — чтобы после перезапуска сервер сразу
+ * знал devicekey и IP устройств, не опрашивая eWeLink-облако заново.
  *
- * Устройства НЕ хранятся в файле: на каждой первичной настройке/перезапуске
- * сервер сам находит и решает как подключаться.
+ * Источники данных:
+ *   1. mDNS-скан -> что есть в локальной сети (deviceid, ip, type)
+ *   2. eWeLink Cloud (по сессии из setup) -> devicekey, имена, комнаты
+ *   3. merge() -> живое устройство: известно КАК им управлять
  *
- * flow:
- *   1. mDNS-скан -> найдено в LAN (deviceid, ip, type, encrypt)
- *   2. eWeLink Cloud (по логину из setup) -> devicekey + имя по deviceid
- *   3. merge -> живое устройство, известно КАК управлять
+ * Кеш на диск (REGISTRY_FILE, по умолчанию ./data/ewelink-registry.json) —
+ * это НЕ ручная настройка, а просто «память процесса на диске»: при старте
+ * читаем, дальше обновляем из облака/mDNS, потом снова пишем.
  */
+
+const REGISTRY_FILE = process.env.REGISTRY_FILE || './data/ewelink-registry.json';
 
 class DeviceRegistry extends EventEmitter {
   constructor() {
     super();
     this.cloudDevices = new Map(); // deviceid -> {devicekey, uiid, name, ...}
-    this.lanDevices = new Map();   // deviceid -> {ip, port, type, encrypt}
+    this.lanDevices = new Map();   // deviceid -> {ip, port, type, encrypt, lastSeen}
     this.scanTimer = null;
     this.scanIntervalMs = 30000;
     this.cloudConfigured = false;
+    this._loadCache();
+  }
+
+  /* --- кеш на диск ------------------------------------------------ */
+
+  _cachePath() {
+    return path.resolve(REGISTRY_FILE);
+  }
+
+  _loadCache() {
+    try {
+      const raw = JSON.parse(fs.readFileSync(this._cachePath(), 'utf-8'));
+      if (raw.cloudConfigured) this.cloudConfigured = true;
+      for (const [id, d] of Object.entries(raw.cloudDevices || {})) {
+        this.cloudDevices.set(id, d);
+      }
+      for (const [id, d] of Object.entries(raw.lanDevices || {})) {
+        this.lanDevices.set(id, d);
+      }
+      console.log(`[registry] кеш загружен: облако=${this.cloudDevices.size}, LAN=${this.lanDevices.size}`);
+    } catch {
+      /* кеша ещё нет — начинаем с чистого листа */
+    }
+  }
+
+  _saveCache() {
+    try {
+      fs.mkdirSync(path.dirname(this._cachePath()), { recursive: true });
+      const snapshot = {
+        cloudConfigured: this.cloudConfigured,
+        savedAt: new Date().toISOString(),
+        cloudDevices: Object.fromEntries(this.cloudDevices),
+        lanDevices: Object.fromEntries(this.lanDevices),
+      };
+      fs.writeFileSync(this._cachePath(), JSON.stringify(snapshot, null, 2));
+    } catch (err) {
+      console.error(`[registry] не смог сохранить кеш (${this._cachePath()}):`, err.message);
+    }
   }
 
   setCloudSession({ at, appid, region }) {
@@ -30,6 +75,7 @@ class DeviceRegistry extends EventEmitter {
     this.appid = appid;
     this.region = region;
     this.cloudConfigured = true;
+    this._saveCache();
   }
 
   clearCloudSession() {
@@ -38,6 +84,7 @@ class DeviceRegistry extends EventEmitter {
     this.region = null;
     this.cloudConfigured = false;
     this.cloudDevices.clear();
+    this._saveCache();
   }
 
   /** Загрузить devicekey всех устройств из облака.
@@ -56,6 +103,7 @@ class DeviceRegistry extends EventEmitter {
     for (const d of devices) {
       this.cloudDevices.set(d.deviceid, d);
     }
+    this._saveCache();
     this.emit('cloud-updated');
   }
 
@@ -71,6 +119,7 @@ class DeviceRegistry extends EventEmitter {
         const prev = this.lanDevices.get(d.deviceid);
         this.lanDevices.set(d.deviceid, { ...(prev || {}), ...d, lastSeen: now });
       }
+      this._saveCache();
       this.emit('lan-updated');
     } catch (err) {
       console.error('[registry] ошибка mDNS-скана:', err.message);
@@ -84,6 +133,7 @@ class DeviceRegistry extends EventEmitter {
     if (info.type === 'rf') return;
     const prev = this.lanDevices.get(deviceid) || {};
     this.lanDevices.set(deviceid, { ...prev, ...info, deviceid, lastSeen: Date.now() });
+    this._saveCache();
   }
 
   /** Тип протокола для устройства: ewelink-lan или mqtt (если известен) */
