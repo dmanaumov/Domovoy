@@ -93,6 +93,12 @@ function buildDeviceCard(device, onToggle) {
   const name = document.createElement('div');
   name.className = 'name';
   name.textContent = device.name;
+  if (device.ip) {
+    const ip = document.createElement('span');
+    ip.className = 'device-ip';
+    ip.textContent = device.ip;
+    name.append(ip);
+  }
   const lastSeen = document.createElement('span');
   lastSeen.className = 'last-seen';
   if (offline) {

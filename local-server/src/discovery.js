@@ -1,5 +1,7 @@
 import net from 'node:net';
+import os from 'node:os';
 import multicastDNS from 'multicast-dns';
+import { probeIdentity } from './ewelink.js';
 
 /**
  * mDNS-сканер eWeLink-устройств в локальной сети.
@@ -131,4 +133,74 @@ export function checkPort(ip, timeoutMs = 2000) {
     });
     socket.on('error', () => { clearTimeout(timer); resolve(false); });
   });
+}
+
+/**
+ * Прямое обнаружение eWeLink-устройств, НЕ зависящее от mDNS.
+ * mDNS-мультикаст часто не пробивается в Docker/WiFi-изоляции, поэтому:
+ *   1. сканируем свою подсеть TCP-коннектом на порт 8081 (Sonoff отвечает);
+ *   2. для каждого открытого IP шлём зашифрованный LAN-опрос (getState) со
+ *      всеми известными deviceid+devicekey — отвечает только то устройство,
+ *      у которого совпал ключ. Так из «открыт порт» получаем deviceid.
+ *
+ * @param {Array<{deviceid: string, devicekey: string|null}>} knownDevices -
+ *        devices, ключи которых известны (из eWeLink-облака/кеша)
+ * @returns {Promise<Array<{deviceid: string, ip: string, port: number}>>}
+ */
+export async function discoverByTcpScan(knownDevices, { port = 8081, probeTimeoutMs = 2000 } = {}) {
+  const keys = (knownDevices || []).filter((d) => d?.devicekey && d?.deviceid);
+
+  // 1. определение локального IPv4 → подсеть /24
+  const net4 = Object.values(os.networkInterfaces())
+    .flat()
+    .find((i) => i && i.family === 'IPv4' && !i.internal && /^192\.168\./.test(i.address));
+  if (!net4) {
+    console.log('[discovery] нет LAN IPv4 — TCP-обнаружение пропускаем');
+    return [];
+  }
+  const base = net4.address.split('.').slice(0, 3).join('.');
+
+  // 2. TCP-скан подсети
+  const targets = [];
+  for (let n = 1; n <= 254; n++) {
+    const ip = `${base}.${n}`;
+    if (ip === net4.address) continue;
+    targets.push(ip);
+  }
+
+  const openIps = [];
+  const CONCURRENCY = 60;
+  let idx = 0;
+  async function worker() {
+    while (idx < targets.length) {
+      const ip = targets[idx++];
+      const ok = await new Promise((resolve) => {
+        const t = setTimeout(() => { s.destroy(); resolve(false); }, 800);
+        const s = net.createConnection({ port, host: ip });
+        s.once('connect', () => { clearTimeout(t); s.destroy(); resolve(true); });
+        s.once('error', () => { clearTimeout(t); resolve(false); });
+      });
+      if (ok) openIps.push(ip);
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  console.log(`[discovery] TCP-скан: открытых портов ${port}: ${openIps.length}`);
+
+  if (!openIps.length || !keys.length) return [];
+
+  // 3. идентификация: чей IP, чей ключ
+  const found = [];
+  await Promise.all(
+    openIps.map(async (ip) => {
+      for (const k of keys) {
+        const { identified } = await probeIdentity({ ip, deviceid: k.deviceid, devicekey: k.devicekey }, probeTimeoutMs);
+        if (identified) {
+          found.push({ deviceid: k.deviceid, ip, port });
+          console.log(`[discovery] LAN-опрос: ${ip} → ${k.deviceid} (${identified})`);
+          break; // один IP = одно устройство
+        }
+      }
+    }),
+  );
+  return found;
 }

@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
-import { discoverDevices } from './discovery.js';
+import { discoverDevices, discoverByTcpScan } from './discovery.js';
 import { fetchEWelinkDevices } from './ewelink-api.js';
 
 /**
@@ -124,34 +124,50 @@ class DeviceRegistry extends EventEmitter {
     });
   }
 
-  /** mDNS-скан локальной сети. НЕ стирает предыдущие находки сразу:
+  /** mDNS-скан + TCP-скан локальной сети. НЕ стирает предыдущие находки сразу:
    *  mDNS-ответы иногда теряются (multicast-isolation), поэтому оставляем
    *  последний известный адрес и фиксируем lastSeen. offline выставляется
    *  по зашкаливанию lastSeen, а не по факту одного неудачного скана. */
   async scanLan() {
     const now = Date.now();
+
+    // 1) mDNS — быстро, но в Docker/WiFi-изоляции часто пусто
+    let found = [];
     try {
-      const found = await discoverDevices(8000);
+      found = await discoverDevices(8000);
       for (const d of found) {
         const prev = this.lanDevices.get(d.deviceid);
         this.lanDevices.set(d.deviceid, { ...(prev || {}), ...d, lastSeen: now });
-        this.emit('lan-updated');
       }
-      // Живость известных устройств подтверждаем TCP-пробой — mDNS может молчать
-      await Promise.all(
-        [...this.lanDevices.values()].map(async (dev) => {
-          const alive = await this._tcpProbe(dev);
-          if (alive) {
-            const prev = this.lanDevices.get(dev.deviceid);
-            this.lanDevices.set(dev.deviceid, { ...(prev || {}), ...dev, lastSeen: Date.now() });
-          }
-        }),
-      );
-      this._saveCache();
-      this.emit('lan-updated');
     } catch (err) {
       console.error('[registry] ошибка mDNS-скана:', err.message);
     }
+
+    // 2) TCP-скан подсети + LAN-опрос — если mDNS молчит.
+    //    Не зависит от multicast: Sonoff отвечает на 8081 unicast.
+    if (!found.length) {
+      try {
+        const byTcp = await discoverByTcpScan([...this.cloudDevices.values()]);
+        for (const d of byTcp) {
+          this.lanDevices.set(d.deviceid, { ...(this.lanDevices.get(d.deviceid) || {}), ...d, type: 'ewelink-lan', encrypt: true, lastSeen: Date.now() });
+        }
+      } catch (err) {
+        console.error('[registry] ошибка TCP-скана подсети:', err.message);
+      }
+    }
+
+    // Живость известных устройств подтверждаем TCP-пробой — mDNS может молчать
+    await Promise.all(
+      [...this.lanDevices.values()].map(async (dev) => {
+        const alive = await this._tcpProbe(dev);
+        if (alive) {
+          const prev = this.lanDevices.get(dev.deviceid);
+          this.lanDevices.set(dev.deviceid, { ...(prev || {}), ...dev, lastSeen: Date.now() });
+        }
+      }),
+    );
+    this._saveCache();
+    this.emit('lan-updated');
   }
 
   /** Метаданные из mDNS (даже без devicekey): обновляет ip и lastSeen.

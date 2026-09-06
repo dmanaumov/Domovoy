@@ -122,6 +122,64 @@ export async function setSwitch(device, state) {
 }
 
 /**
+ * Однократный зашифрованный LAN-опрос устройства (без ретраев).
+ * Используется для ИДЕНТИФИКАЦИИ: если устройство расшифровало пакет
+ * правильным devicekey — оно отвечает структурированным JSON
+ * ({"seq":..., "sequence":..., "error":...}). С чужим ключом — молчит.
+ * Команда «switch» c {getState:true} на plug не переключает реле,
+ * а возвращает error:400 «not supported» — но сам факт ответа = наш deviceid.
+ *
+ * @param {...} device - { ip, deviceid, devicekey }
+ * @returns {Promise<{identified: boolean, body?: string}>}
+ */
+export function probeIdentity(device, timeoutMs = 2000) {
+  const { ip, deviceid, devicekey } = device;
+  const { ctB64, ivB64 } = aesEncrypt(JSON.stringify({ getState: true }), devicekey);
+  const payload = {
+    sequence: sequence(),
+    deviceid,
+    selfApikey: '123',
+    iv: ivB64,
+    encrypt: true,
+    data: ctB64,
+  };
+  return new Promise((resolve) => {
+    const req = http.request({
+      hostname: ip,
+      port: 8081,
+      path: '/zeroconf/switch',
+      method: 'POST',
+      timeout: timeoutMs,
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'Content-Length': Buffer.byteLength(JSON.stringify(payload)),
+        'Connection': 'close',
+        'User-Agent': UA,
+        'Accept': 'application/json',
+        'Cache-Control': 'no-store',
+      },
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => resolve({ identified: isStructuredResponse(raw), body: raw }));
+    });
+    req.on('timeout', () => { req.destroy(); resolve({ identified: false, body: '' }); });
+    req.on('error', () => resolve({ identified: false, body: '' }));
+    req.write(JSON.stringify(payload));
+    req.end();
+  });
+}
+
+function isStructuredResponse(raw) {
+  try {
+    const json = JSON.parse(raw);
+    return json && typeof json === 'object' && ('seq' in json || 'sequence' in json);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Расшифровать mDNS data-поля (concat data1..data4 + iv) с состоянием.
  * @returns {object|null} - расшифрованный JSON или null
  */

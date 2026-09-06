@@ -132,6 +132,7 @@ body {
 }
 
 .device-card .name { font-size: 1rem; }
+.device-card .device-ip { font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem; font-weight: 400; }
 .device-card .last-seen { display: block; font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
 
 .device-card--offline {
