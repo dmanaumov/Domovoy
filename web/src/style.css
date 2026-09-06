@@ -186,7 +186,56 @@ dialog {
   width: 90%;
 }
 dialog label { display: block; margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--muted); }
-dialog input { width: 100%; margin-top: 0.25rem; padding: 0.5rem; border-radius: 8px; border: 1px solid var(--off); background: var(--bg); color: var(--text); }
+dialog input, dialog select {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--off);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+}
 dialog menu { display: flex; justify-content: flex-end; gap: 0.5rem; }
 dialog button { padding: 0.5rem 1rem; border-radius: 8px; border: none; background: var(--off); color: var(--text); }
 #settings-save { background: var(--accent); color: #1a1512; }
+dialog input[readonly] {
+  background: var(--off);
+  color: var(--muted);
+  cursor: not-allowed;
+  font-size: 0.72rem;
+}
+.admin-btn {
+  width: auto;
+  border-radius: 999px;
+  padding: 0 0.9rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  bottom: 1rem;
+  left: 4.6rem;
+  height: 36px;
+}
+.action-btn {
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #1a1512;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.discovery-list { margin: 0.5rem 0 0; padding: 0; list-style: none; }
+.discovery-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--off);
+  font-size: 0.85rem;
+}
+.discovery-list .discovery-ip { color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.75rem; }
+.discovery-list .with-key { color: var(--on); }
+.discovery-list .no-key { color: var(--muted); font-size: 0.7rem; }

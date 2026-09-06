@@ -45,7 +45,8 @@ const settings = {
 
 const statusEl = document.getElementById('status');
 const devicesEl = document.getElementById('devices');
-
+const devicesHintEl = document.getElementById('devices-hint');
+const discoverBtn = document.getElementById('discover-btn');
 document.getElementById('version').textContent = `v${APP_VERSION}`;
 
 // --- welcome-заставка: показываем 5 секунд при каждом входе ---
@@ -67,12 +68,27 @@ function setStatus(mode) {
   statusEl.textContent = label;
 }
 
+function showHint(text, { showDiscover = false } = {}) {
+  devicesEl.innerHTML = '';
+  devicesHintEl.textContent = text;
+  devicesEl.append(devicesHintEl);
+  discoverBtn.hidden = !showDiscover;
+}
+
 function renderDevices(devices, onToggle) {
   if (!devices?.length) {
-    devicesEl.innerHTML = '<p class="hint">Устройства не найдены. Запусти mDNS-разведку или настрой eWeLink (POST /api/setup).</p>';
+    showHint(
+      'Устройства не найдены. Найди их в сети (mDNS) или настрой eWeLink — это даст устройствам имена и ключи управления.',
+      { showDiscover: true },
+    );
     return;
   }
-  devicesEl.innerHTML = '';
+  discoverBtn.hidden = true;
+
+  // Список устройств выводим в отдельный контейнер, чтобы не потерять
+  // кнопку-пустышку и подсказку (они живут в #devices, а карточки — в нём же).
+  const list = document.createElement('div');
+  list.className = 'device-list';
   for (const device of devices) {
     const card = document.createElement('div');
     card.className = 'device-card';
@@ -95,8 +111,9 @@ function renderDevices(devices, onToggle) {
     toggle.addEventListener('click', () => onToggle(device.id, isOn ? 'OFF' : 'ON'));
 
     card.append(info, toggle);
-    devicesEl.append(card);
+    list.append(card);
   }
+  devicesEl.appendChild(list);
 }
 
 async function tryLocal(localUrl, timeoutMs = 800) {
@@ -247,7 +264,7 @@ async function connect() {
 
   if (!settings.installToken) {
     setStatus('offline');
-    devicesEl.innerHTML = '<p class="hint">Не удалось зарегистрироваться в облаке — проверь адрес облачного релея (⚙) и соединение с интернетом.</p>';
+    showHint('Не удалось зарегистрироваться в облаке — проверь адрес облачного релея (⚙) и соединение с интернетом.');
     return;
   }
 
@@ -261,7 +278,7 @@ async function connect() {
     // регистрируемся заново при следующей попытке.
     settings.installToken = '';
     setStatus('offline');
-    devicesEl.innerHTML = '<p class="hint">Соединение с облаком сброшено — пробую переподключиться…</p>';
+    showHint('Соединение с облаком сброшено — пробую переподключиться…');
   });
   setStatus('cloud');
 }
@@ -314,6 +331,67 @@ document.getElementById('share-btn').addEventListener('click', () => {
   shareDialog.showModal();
 });
 document.getElementById('share-close').addEventListener('click', () => shareDialog.close());
+
+// --- кнопка «Найти устройства» над подсказкой ---
+discoverBtn.addEventListener('click', () => runDiscover());
+
+// --- диалог администратора ---
+const adminDialog = document.getElementById('admin-dialog');
+const adminResultEl = document.getElementById('admin-result');
+
+document.getElementById('admin-btn').addEventListener('click', () => adminDialog.showModal());
+document.getElementById('admin-close').addEventListener('click', () => adminDialog.close());
+
+// --- eWeLink: сохранение логина/пароля (пароль не сохраняется на сервере) ---
+document.getElementById('admin-save').addEventListener('click', async () => {
+  const login = document.getElementById('ewelink-login').value.trim();
+  const password = document.getElementById('ewelink-password').value.trim();
+  const region = document.getElementById('ewelink-region').value;
+
+  if (!login || !password) {
+    adminResultEl.textContent = 'Заполни логин и пароль eWeLink.';
+    return;
+  }
+  adminResultEl.textContent = 'Подключаюсь к eWeLink…';
+  try {
+    const res = await fetch(`${settings.localUrl.replace(/\/$/, '')}/api/setup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(settings.token ? { Authorization: `Bearer ${settings.token}` } : {}),
+      },
+      body: JSON.stringify({ login, password, region }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      adminResultEl.textContent = `Ошибка: ${data.message || data.error}`;
+    } else {
+      adminResultEl.textContent = `Готово! Получено устройств: ${data.devices?.length ?? 0}. Теперь нажми «Найти устройства».`;
+      document.getElementById('ewelink-password').value = '';
+    }
+  } catch (err) {
+    adminResultEl.textContent = `Не удалось обратиться к серверу: ${err.message}`;
+  }
+});
+
+// --- mDNS-разведка ---
+async function runDiscover() {
+  discoverBtn.hidden = true;
+  showHint('Сканирую сеть…');
+  try {
+    const res = await fetch(`${settings.localUrl.replace(/\/$/, '')}/api/discover`, {
+      headers: settings.token ? { Authorization: `Bearer ${settings.token}` } : {},
+    });
+    const data = await res.json();
+    currentDevices = data.devices || [];
+    rerender();
+    if (!currentDevices.length) {
+      showHint('В локальной сети ничего не найдено. Убедись, что устройства в одной Wi-Fi сети с сервером.', { showDiscover: true });
+    }
+  } catch (err) {
+    showHint(`Не удалось связаться с сервером: ${err.message}`, { showDiscover: true });
+  }
+}
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -24,10 +24,12 @@
   </header>
 
   <main id="devices" class="devices">
-    <p class="hint">Подключаюсь…</p>
+    <p id="devices-hint" class="hint">Подключаюсь…</p>
+    <button id="discover-btn" class="action-btn" hidden>Найти устройства в сети</button>
   </main>
 
   <button id="settings-btn" class="settings-btn" title="Настройки подключения">⚙</button>
+  <button id="admin-btn" class="settings-btn admin-btn" title="Администрирование: eWeLink и устройства">АДМИНИСТРАТОР</button>
   <button id="share-btn" class="settings-btn share-btn" title="Показать QR для другого устройства">⇄</button>
   <span id="version" class="version"></span>
 
@@ -41,7 +43,7 @@
         <input type="text" id="cloud-url" placeholder="по умолчанию задан заранее, менять не нужно" />
       </label>
       <label>Токен локального сервера (LAN)
-        <input type="text" id="token" placeholder="токен доступа" />
+        <input type="text" id="token" placeholder="токен доступа" readonly />
       </label>
       <label>Алиас этого устройства (для списка в облаке)
         <input type="text" id="install-alias" placeholder="например: Айфон Димы" />
@@ -59,6 +61,33 @@
     <div id="qr-container" class="qr-container"></div>
     <menu>
       <button id="share-close" value="default">Закрыть</button>
+    </menu>
+  </dialog>
+
+  <dialog id="admin-dialog">
+    <h2>Администрирование</h2>
+    <p class="hint">Сервер сам находит устройства по mDNS. Чтобы управлять ими, нужны ключи из аккаунта eWeLink — введи логин и пароль один раз. Пароль нигде не сохраняется, сервер хранит только токен доступа к облаку eWeLink.</p>
+    <label>eWeLink логин (email или телефон)
+      <input type="text" id="ewelink-login" placeholder="email@пример.ру" autocomplete="username" />
+    </label>
+    <label>eWeLink пароль
+      <input type="password" id="ewelink-password" placeholder="пароль" autocomplete="current-password" />
+    </label>
+    <label>Регион
+      <select id="ewelink-region">
+        <option value="eu" selected>Европа (eu)</option>
+        <option value="us">US (us)</option>
+        <option value="cn">Китай (cn)</option>
+        <option value="as">Азия (as)</option>
+      </select>
+    </label>
+    <menu>
+      <button type="button" id="admin-scan">Найти mDNS-устройства</button>
+      <button type="button" id="admin-save">Сохранить eWeLink</button>
+    </menu>
+    <div id="admin-result" class="hint"></div>
+    <menu>
+      <button id="admin-close" value="default">Закрыть</button>
     </menu>
   </dialog>
 
