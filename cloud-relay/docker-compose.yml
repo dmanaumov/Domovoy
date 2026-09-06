@@ -1,0 +1,17 @@
+version: "3.8"
+
+# Это то, что разворачивается на сервере через Dokploy (Application type: Docker Compose).
+# Собирается из КОРНЯ репозитория, потому что образу нужен ../web (общий PWA-клиент).
+# MQTT / Mosquitto / local-server тут НЕТ и не должно быть — они остаются дома, на Raspberry Pi.
+
+services:
+  cloud-relay:
+    build:
+      context: ..
+      dockerfile: cloud-relay/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    expose:
+      - "8080"
+    # Dokploy сам подключит домен к этому сервису через свой Traefik —
+    # в разделе "Domains" приложения укажи порт контейнера 8080.

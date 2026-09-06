@@ -1,0 +1,13 @@
+{
+  "name": "Домовой",
+  "short_name": "Домовой",
+  "description": "Управление умным домом (Sonoff/Tasmota) — локально и из любой точки",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#151312",
+  "theme_color": "#151312",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

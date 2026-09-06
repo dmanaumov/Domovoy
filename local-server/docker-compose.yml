@@ -1,0 +1,32 @@
+version: "3.8"
+
+# Запускать из папки local-server/: docker compose up -d --build
+# build.context указывает на корень репозитория, т.к. образу нужен ../web.
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    ports:
+      - "1883:1883"
+
+  local-server:
+    build:
+      context: ..
+      dockerfile: local-server/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+    depends_on:
+      - mosquitto
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./devices.json:/app/devices.json:ro
+
+volumes:
+  mosquitto-data:

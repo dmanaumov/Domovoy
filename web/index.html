@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Домовой</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#151312" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <div id="splash" class="splash">
+    <img src="icons/icon-512.png" alt="" class="splash__logo" />
+    <div class="splash__name">Домовой</div>
+  </div>
+
+  <header class="topbar">
+    <h1>Домовой</h1>
+    <span id="status" class="status status--offline">…</span>
+  </header>
+
+  <main id="devices" class="devices">
+    <p class="hint">Подключаюсь…</p>
+  </main>
+
+  <button id="settings-btn" class="settings-btn" title="Настройки подключения">⚙</button>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" id="settings-form">
+      <h2>Подключение</h2>
+      <label>Адрес локального сервера (LAN)
+        <input type="text" id="local-url" placeholder="http://192.168.1.50:3000" />
+      </label>
+      <label>Адрес облачного релея
+        <input type="text" id="cloud-url" placeholder="https://domovoy.example.com" />
+      </label>
+      <label>Токен
+        <input type="text" id="token" placeholder="токен доступа" />
+      </label>
+      <menu>
+        <button value="cancel">Отмена</button>
+        <button value="default" id="settings-save">Сохранить</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

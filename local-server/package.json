@@ -1,0 +1,16 @@
+{
+  "name": "domovoy-local-server",
+  "version": "0.1.0",
+  "description": "Домовой — локальный сервер (работает дома, без интернета). MQTT <-> Tasmota, REST/WS API, опциональный туннель в облачный релей.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mqtt": "^5.7.0",
+    "ws": "^8.17.0"
+  }
+}

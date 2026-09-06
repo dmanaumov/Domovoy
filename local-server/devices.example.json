@@ -1,0 +1,12 @@
+[
+  {
+    "id": "kitchen-light",
+    "name": "Свет на кухне",
+    "topic": "tasmota_kitchen"
+  },
+  {
+    "id": "hallway-socket",
+    "name": "Розетка в прихожей",
+    "topic": "tasmota_hallway"
+  }
+]
