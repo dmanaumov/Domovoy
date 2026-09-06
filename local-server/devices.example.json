@@ -8,5 +8,13 @@
     "id": "hallway-socket",
     "name": "Розетка в прихожей",
     "topic": "tasmota_hallway"
+  },
+  {
+    "id": "bra-gostinnoy",
+    "name": "Бра гостинной",
+    "type": "ewelink",
+    "deviceid": "1000899b68",
+    "ip": "192.168.0.50",
+    "devicekey": "ab67a18f-25f8-470a-ba1b-d229774337a0"
   }
 ]

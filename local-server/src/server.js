@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { config } from './config.js';
 import { createMqttHub } from './mqtt.js';
+import { discoverDevices } from './discovery.js';
 import { connectRelay } from './relay-client.js';
 
 const app = express();
@@ -22,18 +23,38 @@ const hub = createMqttHub();
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+// mDNS-разведка: найти eWeLink-устройства в локальной сети
+// (devicekey не передаётся в mDNS — будет заполнен из devices.json / настройки)
+app.get('/api/discover', checkToken, async (_req, res) => {
+  try {
+    const found = await discoverDevices();
+    const known = new Set(config.devices.map((d) => d.deviceid));
+    res.json({
+      found: found.map((d) => ({
+        ...d,
+        known: known.has(d.deviceid), // уже добавлено в систему?
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'discover failed', detail: err.message });
+  }
+});
+
 app.get('/api/devices', checkToken, (_req, res) => {
   res.json({ devices: hub.listDevices() });
 });
 
-app.post('/api/devices/:id/power', checkToken, (req, res) => {
+app.post('/api/devices/:id/power', checkToken, async (req, res) => {
   const { id } = req.params;
   const action = (req.body?.action || '').toUpperCase();
   if (!['ON', 'OFF', 'TOGGLE'].includes(action)) {
     return res.status(400).json({ error: 'action должен быть ON, OFF или TOGGLE' });
   }
   try {
-    hub.setPower(id, action);
+    const result = await hub.setPower(id, action);
+    if (result && !result.ok) {
+      return res.status(502).json({ error: 'устройство не ответило', detail: result });
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(404).json({ error: err.message });

@@ -40,11 +40,9 @@ export function connectRelay(hub) {
         return;
       }
       if (msg.type === 'command') {
-        try {
-          hub.setPower(msg.deviceId, msg.action);
-        } catch (err) {
+        hub.setPower(msg.deviceId, msg.action).catch((err) => {
           console.error('[relay] ошибка команды', err.message);
-        }
+        });
       }
     });
 
