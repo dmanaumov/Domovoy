@@ -5,9 +5,13 @@ import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import { URL } from 'node:url';
 import * as installations from './installations.js';
+import pkg from '../package.json' with { type: 'json' };
 
 const PORT = Number(process.env.PORT || 8080);
 const RELAY_TOKEN = process.env.RELAY_TOKEN || ''; // должен совпадать с local-server .env
+
+// Версия сборки: Dokploy/железо задают APP_VERSION=0.1.<число коммитов>.
+const APP_VERSION = process.env.APP_VERSION || pkg.version;
 
 const app = express();
 app.use(express.json());
@@ -131,7 +135,11 @@ const ADMIN_HTML = `<!doctype html>
 app.get('/admin', (_req, res) => res.type('html').send(ADMIN_HTML));
 
 app.get('/api/status', (_req, res) => {
-  res.json({ homeOnline: homeSocket !== null, lastState });
+  res.json({ homeOnline: homeSocket !== null, lastState, version: APP_VERSION });
+});
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, version: APP_VERSION });
 });
 
 // Клиент сам регистрируется при первом запуске — получает свой токен,
