@@ -27,6 +27,11 @@ const settings = {
   // создаётся автоматически при первом обращении к облаку (см. ensureInstallToken).
   get installToken() { return localStorage.getItem('domovoy.installToken') || ''; },
   set installToken(value) { localStorage.setItem('domovoy.installToken', value || ''); },
+  // Алиас инсталляции — как эта установка подписана в списке на сервере
+  // (GET /api/installations). Пользователь может задать своё название
+  // в настройках (⚙) — иначе используется угаданное по User-Agent.
+  get installAlias() { return localStorage.getItem('domovoy.installAlias') || ''; },
+  set installAlias(value) { localStorage.setItem('domovoy.installAlias', value || ''); },
   save({ localUrl, cloudUrl, token }) {
     localStorage.setItem('domovoy.localUrl', localUrl || '');
     localStorage.setItem('domovoy.cloudUrl', cloudUrl || '');
@@ -150,7 +155,7 @@ async function ensureInstallToken() {
     const res = await fetch(`${settings.cloudUrl.replace(/\/$/, '')}/api/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alias: guessAlias() }),
+      body: JSON.stringify({ alias: settings.installAlias || guessAlias() }),
     });
     if (!res.ok) return;
     const data = await res.json();
@@ -158,6 +163,22 @@ async function ensureInstallToken() {
   } catch {
     /* нет сети — попробуем зарегистрироваться при следующем connect() */
   }
+}
+
+// Пользователь поменял алиас в настройках уже после регистрации —
+// сообщаем об этом серверу (аутентификация — сам installToken, он же id).
+async function updateInstallAlias(alias) {
+  if (!settings.installToken || !alias) return;
+  try {
+    await fetch(`${settings.cloudUrl.replace(/\/$/, '')}/api/installations/alias`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${settings.installToken}`,
+      },
+      body: JSON.stringify({ alias }),
+    });
+  } catch { /* не критично, попробуем в другой раз */ }
 }
 
 class CloudConnection {
@@ -247,6 +268,8 @@ document.getElementById('settings-btn').addEventListener('click', () => {
   document.getElementById('local-url').value = settings.localUrl;
   document.getElementById('cloud-url').value = settings.cloudUrl;
   document.getElementById('token').value = settings.token;
+  document.getElementById('install-alias').value = settings.installAlias;
+  document.getElementById('install-alias').placeholder = guessAlias();
   dialog.showModal();
 });
 
@@ -257,6 +280,11 @@ dialog.addEventListener('close', () => {
     cloudUrl: document.getElementById('cloud-url').value.trim(),
     token: document.getElementById('token').value.trim(),
   });
+  const alias = document.getElementById('install-alias').value.trim();
+  if (alias !== settings.installAlias) {
+    settings.installAlias = alias;
+    updateInstallAlias(alias);
+  }
   connect();
 });
 

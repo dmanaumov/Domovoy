@@ -53,6 +53,12 @@ export function touch(token) {
   persist();
 }
 
+export function setAlias(token, alias) {
+  if (!installations[token]) return;
+  installations[token].alias = (alias || 'Устройство').toString().slice(0, 60);
+  persist();
+}
+
 export function list() {
   return Object.entries(installations)
     .map(([token, info]) => ({ id: token.slice(0, 8), ...info }))

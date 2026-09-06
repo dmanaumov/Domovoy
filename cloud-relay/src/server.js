@@ -38,6 +38,18 @@ app.get('/api/installations', (req, res) => {
   res.json({ installations: installations.list() });
 });
 
+// Пользователь может задать своей инсталляции читаемое имя (⚙ → "Алиас
+// этого устройства"). Аутентификация здесь — собственный installToken
+// клиента: он же и есть id записи, которую меняем.
+app.post('/api/installations/alias', (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!installations.isValid(token)) return res.status(401).json({ error: 'unauthorized' });
+  const alias = typeof req.body?.alias === 'string' ? req.body.alias : '';
+  installations.setAlias(token, alias);
+  res.json({ ok: true });
+});
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
