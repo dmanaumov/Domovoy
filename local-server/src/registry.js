@@ -32,6 +32,14 @@ class DeviceRegistry extends EventEmitter {
     this.cloudConfigured = true;
   }
 
+  clearCloudSession() {
+    this.at = null;
+    this.appid = null;
+    this.region = null;
+    this.cloudConfigured = false;
+    this.cloudDevices.clear();
+  }
+
   /** Загрузить devicekey всех устройств из облака */
   async refreshCloud() {
     if (!this.cloudConfigured) return;
@@ -83,6 +91,8 @@ class DeviceRegistry extends EventEmitter {
         encrypt: lan.encrypt !== false,
         uiid: cloud?.uiid ?? null,
         devicekey: cloud?.devicekey || null, // null = не удалось получить ключ
+        home: cloud?.home || null,
+        room: cloud?.room || null,
         // как подключаться:
         protocol: 'ewelink-lan',
       });
@@ -100,6 +110,8 @@ class DeviceRegistry extends EventEmitter {
         encrypt: true,
         uiid: cloud.uiid,
         devicekey: cloud.devicekey,
+        home: cloud.home || null,
+        room: cloud.room || null,
         protocol: 'ewelink-lan',
         offline: true,
       });

@@ -100,16 +100,29 @@ export async function fetchEWelinkDevices(at, appid, region = 'eu') {
   const list = [];
   for (const f of families) {
     const { json } = await apiGet(host, at, appid, `/v2/device/thing?num=0&familyid=${f.id}`);
-    if (json.error === 0) list.push(...(json.data?.thingList || []));
+    if (json.error === 0) {
+      for (const t of json.data?.thingList || []) {
+        t._familyId = f.id;
+        list.push(t);
+      }
+    }
   }
   const { json: allJson } = await apiGet(host, at, appid, '/v2/device/thing?num=0');
   if (allJson.error === 0) list.push(...(allJson.data?.thingList || []));
+
+  const familyById = new Map(families.map((f) => [f.id, f]));
 
   for (const t of list) {
     const d = t.itemData;
     if (!d || !d.deviceid) continue;
     if (seen.has(d.deviceid)) continue;
     seen.add(d.deviceid);
+
+    // Дом/комната: берём из семьи (по familyid запроса) или из тегов устройства
+    const tagGroup = d.tags?.group?.[0] || t.tags?.group?.[0];
+    const tagFamily = d.tags?.family?.[0] || t.tags?.family?.[0];
+    const family = familyById.get(t._familyId) || (tagFamily ? { name: tagFamily.name } : null);
+
     devices.push({
       deviceid: d.deviceid,
       name: d.name || d.deviceid,
@@ -117,6 +130,8 @@ export async function fetchEWelinkDevices(at, appid, region = 'eu') {
       devicekey: d.devicekey || null,
       online: d.online || false,
       apikey: d.apikey,
+      home: family?.name || tagFamily?.name || 'Дом',
+      room: tagGroup?.name || null,
     });
   }
   return devices;

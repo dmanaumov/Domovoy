@@ -57,6 +57,20 @@ async function bootstrap() {
   console.log(`[setup] найдено устройств в LAN: ${registry.getDevices().length}`);
 }
 
+// Сброс eWeLink-настройки: забыть сохранённый токен (остальные устройства/сессии не трогаем)
+app.delete('/api/setup', checkToken, (_req, res) => {
+  try {
+    fs.unlinkSync(SESSION_FILE);
+    try {
+      fs.unlinkSync(SESSION_FILE + '.bak');
+    } catch { /* не обязательно */ }
+    registry.clearCloudSession();
+  } catch {
+    /* файла нет — и не надо */
+  }
+  res.json({ ok: true });
+});
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 // Свободы: ставим eWeLink-аккаунт (email/пароль) при первичной настройке.
@@ -70,12 +84,23 @@ app.post('/api/setup', checkToken, async (req, res) => {
   if (!result.ok) {
     return res.status(401).json({ error: 'не удалось войти в eWeLink', detail: result });
   }
-  const session = { at: result.at, appid: result.appid, region: result.region };
+  const session = { at: result.at, appid: result.appid, region: result.region, login: String(login) };
   saveSession(session);
   registry.setCloudSession(session);
   await registry.refreshCloud();
   await registry.scanLan();
   res.json({ ok: true, devices: registry.getDevices() });
+});
+
+// Статус eWeLink-настройки (чтобы веб не просил логин/пароль заново,
+// если сессия уже сохранена на сервере)
+app.get('/api/setup', checkToken, (_req, res) => {
+  const session = loadSession();
+  if (session?.at && session?.appid) {
+    res.json({ configured: true, login: session.login || null, region: session.region || null });
+  } else {
+    res.json({ configured: false });
+  }
 });
 
 // mDNS-разведка прямо сейчас

@@ -36,6 +36,12 @@ const settings = {
   // в настройках (⚙) — иначе используется угаданное по User-Agent.
   get installAlias() { return localStorage.getItem('domovoy.installAlias') || ''; },
   set installAlias(value) { localStorage.setItem('domovoy.installAlias', value || ''); },
+  // eWeLink-креды для админки — хранятся ТОЛЬКО в localStorage браузера
+  // (на сервер уходят один раз при настройке и там не сохраняются).
+  get ewelinkLogin() { return localStorage.getItem('domovoy.ewelinkLogin') || ''; },
+  set ewelinkLogin(value) { localStorage.setItem('domovoy.ewelinkLogin', value || ''); },
+  get ewelinkPassword() { return localStorage.getItem('domovoy.ewelinkPassword') || ''; },
+  set ewelinkPassword(value) { localStorage.setItem('domovoy.ewelinkPassword', value || ''); },
   save({ localUrl, cloudUrl, token }) {
     localStorage.setItem('domovoy.localUrl', localUrl || '');
     localStorage.setItem('domovoy.cloudUrl', cloudUrl || '');
@@ -75,7 +81,37 @@ function showHint(text, { showDiscover = false } = {}) {
   discoverBtn.hidden = !showDiscover;
 }
 
+function buildDeviceCard(device, onToggle) {
+  const card = document.createElement('div');
+  card.className = 'device-card';
+
+  const info = document.createElement('div');
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = device.name;
+  const lastSeen = document.createElement('span');
+  lastSeen.className = 'last-seen';
+  lastSeen.textContent = device.state?.lastSeen
+    ? `обновлено ${new Date(device.state.lastSeen).toLocaleTimeString('ru-RU')}`
+    : 'нет данных';
+  info.append(name, lastSeen);
+
+  const toggle = document.createElement('button');
+  const isOn = device.state?.power === 'ON';
+  toggle.className = `toggle${isOn ? ' on' : ''}`;
+  toggle.setAttribute('aria-label', `Переключить ${device.name}`);
+  if (device.offline) toggle.disabled = true;
+  toggle.addEventListener('click', () => onToggle(device.id, isOn ? 'OFF' : 'ON'));
+
+  card.append(info, toggle);
+  return card;
+}
+
 function renderDevices(devices, onToggle) {
+  // ПЕРЕД рисовкой всегда очищаем контейнер — иначе каждый rerender (connect раз в 15с)
+  // дописывает ещё одну полную пачку карточек к уже существующим.
+  devicesEl.innerHTML = '';
+
   if (!devices?.length) {
     showHint(
       'Устройства не найдены. Найди их в сети (mDNS) или настрой eWeLink — это даст устройствам имена и ключи управления.',
@@ -85,35 +121,39 @@ function renderDevices(devices, onToggle) {
   }
   discoverBtn.hidden = true;
 
-  // Список устройств выводим в отдельный контейнер, чтобы не потерять
-  // кнопку-пустышку и подсказку (они живут в #devices, а карточки — в нём же).
-  const list = document.createElement('div');
-  list.className = 'device-list';
+  // Деление по домам и комнатам: группируем из метаданных облака eWeLink.
+  const homes = new Map(); // homeName -> roomName -> [device]
   for (const device of devices) {
-    const card = document.createElement('div');
-    card.className = 'device-card';
-
-    const info = document.createElement('div');
-    const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = device.name;
-    const lastSeen = document.createElement('span');
-    lastSeen.className = 'last-seen';
-    lastSeen.textContent = device.state?.lastSeen
-      ? `обновлено ${new Date(device.state.lastSeen).toLocaleTimeString('ru-RU')}`
-      : 'нет данных';
-    info.append(name, lastSeen);
-
-    const toggle = document.createElement('button');
-    const isOn = device.state?.power === 'ON';
-    toggle.className = `toggle${isOn ? ' on' : ''}`;
-    toggle.setAttribute('aria-label', `Переключить ${device.name}`);
-    toggle.addEventListener('click', () => onToggle(device.id, isOn ? 'OFF' : 'ON'));
-
-    card.append(info, toggle);
-    list.append(card);
+    const home = device.home || 'Дом';
+    if (!homes.has(home)) homes.set(home, new Map());
+    const rooms = homes.get(home);
+    const room = device.room || 'Прочие';
+    if (!rooms.has(room)) rooms.set(room, []);
+    rooms.get(room).push(device);
   }
-  devicesEl.appendChild(list);
+
+  for (const [homeName, rooms] of homes) {
+    const homeSection = document.createElement('section');
+    homeSection.className = 'home-section';
+
+    const homeEl = document.createElement('h2');
+    homeEl.className = 'home-title';
+    homeEl.textContent = homeName;
+    homeSection.append(homeEl);
+
+    for (const [roomName, roomDevices] of rooms) {
+      if (roomName !== 'Прочие') {
+        const roomEl = document.createElement('h3');
+        roomEl.className = 'room-title';
+        roomEl.textContent = roomName;
+        homeSection.append(roomEl);
+      }
+      for (const device of roomDevices) {
+        homeSection.append(buildDeviceCard(device, onToggle));
+      }
+    }
+    devicesEl.append(homeSection);
+  }
 }
 
 async function tryLocal(localUrl, timeoutMs = 800) {
@@ -339,8 +379,66 @@ discoverBtn.addEventListener('click', () => runDiscover());
 const adminDialog = document.getElementById('admin-dialog');
 const adminResultEl = document.getElementById('admin-result');
 
-document.getElementById('admin-btn').addEventListener('click', () => adminDialog.showModal());
+document.getElementById('admin-btn').addEventListener('click', () => {
+  adminDialog.showModal();
+  updateAdminUi();
+});
+
+async function updateAdminUi() {
+  const formEl = document.getElementById('admin-form');
+  const configuredEl = document.getElementById('admin-configured');
+  const configuredTitle = document.getElementById('admin-configured-title');
+  const configuredDesc = document.getElementById('admin-configured-desc');
+  const resetBtn = document.getElementById('admin-reset');
+  let hasSession = false;
+  try {
+    const res = await fetch(`${settings.localUrl.replace(/\/$/, '')}/api/setup`, {
+      headers: settings.token ? { Authorization: `Bearer ${settings.token}` } : {},
+    });
+    const data = await res.json();
+    hasSession = data.configured === true;
+    if (hasSession) {
+      configuredTitle.textContent = 'Домовой подключён к eWeLink';
+      configuredDesc.textContent = `Токен доступа сохранён на сервере${data.login ? ` для ${data.login}` : ''}${data.region ? ` (${data.region})` : ''}. Устройства уже есть — можно делиться по сети.`;
+    }
+  } catch {
+    /* сервер недоступен — покажем форму */
+  }
+  configuredEl.hidden = !hasSession;
+  formEl.hidden = hasSession;
+  resetBtn.hidden = !hasSession;
+  if (hasSession) {
+    const loginEl = document.getElementById('ewelink-login');
+    const passwordEl = document.getElementById('ewelink-password');
+    if (!loginEl.value && settings.ewelinkLogin) loginEl.value = settings.ewelinkLogin;
+    if (!passwordEl.value && settings.ewelinkPassword) passwordEl.value = settings.ewelinkPassword;
+  }
+}
+
 document.getElementById('admin-close').addEventListener('click', () => adminDialog.close());
+
+// Сбросить eWeLink-сессию на сервере (стереть токен доступа)
+document.getElementById('admin-reset').addEventListener('click', async () => {
+  adminResultEl.textContent = 'Удаляю токен eWeLink…';
+  try {
+    const res = await fetch(`${settings.localUrl.replace(/\/$/, '')}/api/setup`, {
+      method: 'DELETE',
+      headers: settings.token ? { Authorization: `Bearer ${settings.token}` } : {},
+    });
+    const data = await res.json();
+    if (data.error) {
+      adminResultEl.textContent = `Ошибка: ${data.error}`;
+    } else {
+      settings.ewelinkLogin = '';
+      settings.ewelinkPassword = '';
+      document.getElementById('ewelink-password').value = '';
+      adminResultEl.textContent = 'Сессия eWeLink удалена. При необходимости введи логин и пароль заново.';
+      updateAdminUi();
+    }
+  } catch (err) {
+    adminResultEl.textContent = `Не удалось обратиться к серверу: ${err.message}`;
+  }
+});
 
 // --- eWeLink: сохранение логина/пароля (пароль не сохраняется на сервере) ---
 document.getElementById('admin-save').addEventListener('click', async () => {
@@ -352,6 +450,8 @@ document.getElementById('admin-save').addEventListener('click', async () => {
     adminResultEl.textContent = 'Заполни логин и пароль eWeLink.';
     return;
   }
+  settings.ewelinkLogin = login;
+  settings.ewelinkPassword = password;
   adminResultEl.textContent = 'Подключаюсь к eWeLink…';
   try {
     const res = await fetch(`${settings.localUrl.replace(/\/$/, '')}/api/setup`, {
@@ -368,6 +468,7 @@ document.getElementById('admin-save').addEventListener('click', async () => {
     } else {
       adminResultEl.textContent = `Готово! Получено устройств: ${data.devices?.length ?? 0}. Теперь нажми «Найти устройства».`;
       document.getElementById('ewelink-password').value = '';
+      settings.ewelinkPassword = '';
     }
   } catch (err) {
     adminResultEl.textContent = `Не удалось обратиться к серверу: ${err.message}`;

@@ -66,24 +66,33 @@
 
   <dialog id="admin-dialog">
     <h2>Администрирование</h2>
-    <p class="hint">Сервер сам находит устройства по mDNS. Чтобы управлять ими, нужны ключи из аккаунта eWeLink — введи логин и пароль один раз. Пароль нигде не сохраняется, сервер хранит только токен доступа к облаку eWeLink.</p>
-    <label>eWeLink логин (email или телефон)
-      <input type="text" id="ewelink-login" placeholder="email@пример.ру" autocomplete="username" />
-    </label>
-    <label>eWeLink пароль
-      <input type="password" id="ewelink-password" placeholder="пароль" autocomplete="current-password" />
-    </label>
-    <label>Регион
-      <select id="ewelink-region">
-        <option value="eu" selected>Европа (eu)</option>
-        <option value="us">US (us)</option>
-        <option value="cn">Китай (cn)</option>
-        <option value="as">Азия (as)</option>
-      </select>
-    </label>
+    <div id="admin-configured" class="admin-configured" hidden>
+      <div id="admin-configured-title" class="admin-configured__title">Домовой подключён к eWeLink ✅</div>
+      <p id="admin-configured-desc" class="hint">...</p>
+    </div>
+    <div id="admin-form">
+      <p class="hint">Сервер сам находит устройства по mDNS. Чтобы управлять ими, нужны ключи из аккаунта eWeLink — введи логин и пароль один раз. Пароль нигде не сохраняется, сервер хранит только токен доступа к облаку eWeLink.</p>
+      <label>eWeLink логин (email или телефон)
+        <input type="text" id="ewelink-login" placeholder="email@пример.ру" autocomplete="username" />
+      </label>
+      <label>eWeLink пароль
+        <input type="password" id="ewelink-password" placeholder="пароль" autocomplete="current-password" />
+      </label>
+      <label>Регион
+        <select id="ewelink-region">
+          <option value="eu" selected>Европа (eu)</option>
+          <option value="us">US (us)</option>
+          <option value="cn">Китай (cn)</option>
+          <option value="as">Азия (as)</option>
+        </select>
+      </label>
+      <menu>
+        <button type="button" id="admin-save">Сохранить eWeLink</button>
+      </menu>
+    </div>
     <menu>
+      <button type="button" id="admin-reset">Сбросить eWeLink</button>
       <button type="button" id="admin-scan">Найти mDNS-устройства</button>
-      <button type="button" id="admin-save">Сохранить eWeLink</button>
     </menu>
     <div id="admin-result" class="hint"></div>
     <menu>

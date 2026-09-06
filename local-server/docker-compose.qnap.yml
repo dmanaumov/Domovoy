@@ -30,6 +30,12 @@ services:
       RELAY_TOKEN: "ЗАМЕНИ-НА-СВОЙ-RELAY_TOKEN"
     ports:
       - "3000:3000"
+    volumes:
+      # Сессия eWeLink (data/ewelink-session.json) и сгенерированный LOCAL_TOKEN
+      # живут в /app/data. Без volume они пропадали бы при каждом пересоздании
+      # контейнера — и eWeLink пришлось бы настраивать заново.
+      - local-server-data:/app/data
 
 volumes:
   mosquitto-data:
+  local-server-data:

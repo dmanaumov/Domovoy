@@ -100,6 +100,26 @@ body {
   gap: 0.75rem;
 }
 
+.home-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.home-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.room-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0.75rem 0 -0.35rem 0.25rem;
+  color: var(--muted);
+}
+
 .hint { color: var(--muted); }
 
 .device-card {
@@ -226,6 +246,19 @@ dialog input[readonly] {
   font-size: 0.95rem;
   cursor: pointer;
 }
+.admin-configured {
+  background: var(--off);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.admin-configured__title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--on);
+  margin-bottom: 0.25rem;
+}
+
 .discovery-list { margin: 0.5rem 0 0; padding: 0; list-style: none; }
 .discovery-list li {
   display: flex;
