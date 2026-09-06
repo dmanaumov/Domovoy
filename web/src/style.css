@@ -1,12 +1,30 @@
+/* Светлая тема — по умолчанию */
 :root {
-  color-scheme: dark;
-  --bg: #151312;
-  --card: #201d1b;
-  --accent: #e08a3e;
-  --text: #f2ede8;
-  --muted: #948b83;
-  --on: #4caf6a;
-  --off: #3a3532;
+  color-scheme: light dark;
+  --bg: #f4f1ec;
+  --card: #ffffff;
+  --accent: #c96f2e;
+  --text: #211d1a;
+  --muted: #857c72;
+  --on: #2f8f56;
+  --off: #e3ddd4;
+
+  /* Заставка (лого + название) — всегда графитовая, независимо от темы */
+  --splash-bg: #211e1c;
+  --splash-text: #f2ede8;
+}
+
+/* Тёмная тема — по системной настройке устройства (например, ночью) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151312;
+    --card: #201d1b;
+    --accent: #e08a3e;
+    --text: #f2ede8;
+    --muted: #948b83;
+    --on: #4caf6a;
+    --off: #3a3532;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -29,7 +47,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 1.25rem;
-  background: var(--bg);
+  /* Фиксированный графитовый цвет — заставка не зависит от темы устройства */
+  background: var(--splash-bg);
   opacity: 1;
   transition: opacity 0.5s ease;
 }
@@ -48,7 +67,7 @@ body {
   font-size: 1.6rem;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--text);
+  color: var(--splash-text);
 }
 
 .topbar {
