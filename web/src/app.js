@@ -2,6 +2,16 @@
 // Логика: сначала пробуем достучаться до локального сервера в LAN (быстро, работает
 // без интернета). Если не вышло за короткий таймаут — идём через облачный релей.
 
+// Если открыли ссылку вида .../#pair=ТОКЕН (например, отсканировав QR с уже
+// настроенного устройства — см. кнопку ⇄) — подхватываем токен сами, без
+// ручного ввода, и убираем хэш из адресной строки.
+(function applyPairingHashIfPresent() {
+  const match = location.hash.match(/^#pair=(.+)$/);
+  if (!match) return;
+  localStorage.setItem('domovoy.token', decodeURIComponent(match[1]));
+  history.replaceState(null, '', location.pathname + location.search);
+})();
+
 const settings = {
   get localUrl() { return localStorage.getItem('domovoy.localUrl') || ''; },
   // Если облачный адрес не задан явно — используем адрес, с которого сама
@@ -210,6 +220,26 @@ document.getElementById('settings-form').addEventListener('close', () => {
   });
   connect();
 });
+
+// --- QR для добавления нового устройства (часть А) ---
+// Токен уже есть в этом браузере (устройство уже настроено) — рисуем QR
+// со ссылкой вида <cloudUrl>/#pair=<token>. Сканирование камерой открывает
+// ссылку в Safari/Chrome, и токен подставляется сам (см. applyPairingHashIfPresent выше).
+const shareDialog = document.getElementById('share-dialog');
+document.getElementById('share-btn').addEventListener('click', () => {
+  const qrContainer = document.getElementById('qr-container');
+  if (!settings.token) {
+    qrContainer.innerHTML = '<p class="hint">Сначала настрой это устройство (⚙) — нечего передавать.</p>';
+  } else {
+    const pairUrl = `${settings.cloudUrl}/#pair=${encodeURIComponent(settings.token)}`;
+    const qr = qrcode(0, 'M');
+    qr.addData(pairUrl);
+    qr.make();
+    qrContainer.innerHTML = qr.createSvgTag(6);
+  }
+  shareDialog.showModal();
+});
+document.getElementById('share-close').addEventListener('click', () => shareDialog.close());
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

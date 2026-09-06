@@ -148,6 +148,23 @@ body {
   color: var(--text);
   font-size: 1.1rem;
 }
+.share-btn {
+  right: auto;
+  left: 1rem;
+}
+
+.qr-container {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0;
+}
+.qr-container svg {
+  width: 220px;
+  height: 220px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+}
 
 dialog {
   background: var(--card);

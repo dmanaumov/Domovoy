@@ -28,6 +28,7 @@
   </main>
 
   <button id="settings-btn" class="settings-btn" title="Настройки подключения">⚙</button>
+  <button id="share-btn" class="settings-btn share-btn" title="Показать QR для другого устройства">⇄</button>
 
   <dialog id="settings-dialog">
     <form method="dialog" id="settings-form">
@@ -48,6 +49,16 @@
     </form>
   </dialog>
 
+  <dialog id="share-dialog">
+    <h2>Добавить устройство</h2>
+    <p class="hint">Отсканируй камерой телефона — откроется ссылка, и токен подставится сам, без ручного ввода.</p>
+    <div id="qr-container" class="qr-container"></div>
+    <menu>
+      <button id="share-close" value="default">Закрыть</button>
+    </menu>
+  </dialog>
+
+  <script src="src/vendor/qrcode.js"></script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>
