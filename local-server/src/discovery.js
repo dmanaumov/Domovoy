@@ -25,8 +25,8 @@ import { probeIdentity } from './ewelink.js';
  */
 
 const SERVICE_TYPE = '_ewelink._tcp.local';
-const SCAN_TIMEOUT_MS = 10000;
-const QUERY_INTERVAL_MS = 2000;
+const SCAN_TIMEOUT_MS = 4000;
+const QUERY_INTERVAL_MS = 1500;
 
 function parseTxt(data) {
   const result = {};

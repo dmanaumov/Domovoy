@@ -124,39 +124,29 @@ class DeviceRegistry extends EventEmitter {
     });
   }
 
-  /** mDNS-скан + TCP-скан локальной сети. НЕ стирает предыдущие находки сразу:
-   *  mDNS-ответы иногда теряются (multicast-isolation), поэтому оставляем
-   *  последний известный адрес и фиксируем lastSeen. offline выставляется
-   *  по зашкаливанию lastSeen, а не по факту одного неудачного скана. */
+  /** mDNS-скан + TCP-скан локальной сети (параллельно). */
   async scanLan() {
     const now = Date.now();
 
-    // 1) mDNS — быстро, но в Docker/WiFi-изоляции часто пусто
-    let found = [];
-    try {
-      found = await discoverDevices(8000);
-      for (const d of found) {
-        const prev = this.lanDevices.get(d.deviceid);
-        this.lanDevices.set(d.deviceid, { ...(prev || {}), ...d, lastSeen: now });
-      }
-    } catch (err) {
-      console.error('[registry] ошибка mDNS-скана:', err.message);
-    }
-
-    // 2) TCP-скан подсети + LAN-опрос — если mDNS молчит.
-    //    Не зависит от multicast: Sonoff отвечает на 8081 unicast.
-    if (!found.length) {
-      try {
-        const byTcp = await discoverByTcpScan([...this.cloudDevices.values()]);
-        for (const d of byTcp) {
-          this.lanDevices.set(d.deviceid, { ...(this.lanDevices.get(d.deviceid) || {}), ...d, type: 'ewelink-lan', encrypt: true, lastSeen: Date.now() });
-        }
-      } catch (err) {
+    // Запускаем mDNS и TCP-скан одновременно — экономим 8-10 сек.
+    const [mdnsFound, tcpFound] = await Promise.all([
+      discoverDevices(5000).catch((err) => {
+        console.error('[registry] ошибка mDNS-скана:', err.message);
+        return [];
+      }),
+      discoverByTcpScan([...this.cloudDevices.values()]).catch((err) => {
         console.error('[registry] ошибка TCP-скана подсети:', err.message);
-      }
+        return [];
+      }),
+    ]);
+
+    // Оба источника дополняют друг друга
+    for (const d of [...mdnsFound, ...tcpFound]) {
+      const prev = this.lanDevices.get(d.deviceid);
+      this.lanDevices.set(d.deviceid, { ...(prev || {}), ...d, lastSeen: now });
     }
 
-    // Живость известных устройств подтверждаем TCP-пробой — mDNS может молчать
+    // TCP-проверка известных (даже если mDNS/TCP не нашли — порт мог открыться)
     await Promise.all(
       [...this.lanDevices.values()].map(async (dev) => {
         const alive = await this._tcpProbe(dev);
