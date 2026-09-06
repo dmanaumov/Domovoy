@@ -43,22 +43,30 @@ MQTT и логика устройств живут **только дома**. Н
 
 ## Быстрый старт — домашний сервер на QNAP NAS
 
-Самый быстрый путь — собрать образы прямо на своей машине и перегнать на NAS по SSH (без registry, без GitHub Actions, занимает секунды):
+QNAP Container Station держит собственный Docker-демон, доступный по сети напрямую через **Docker Remote API** (TLS, порт 2376) — это включено на NAS по умолчанию, если работает Container Station. Значит можно подключить `docker` со своего компьютера прямо к NAS и собирать/запускать образы без ssh и без docker save/load.
 
-1. На NAS: Control Panel → Network & File Services → **Telnet/SSH** → включить SSH.
-2. `cp local-server/.env.example local-server/.env` и заполнить `LOCAL_TOKEN`, `RELAY_URL`, `RELAY_TOKEN`.
-3. (Опционально) положить реальный список устройств в `local-server/devices.json` (по образцу `devices.example.json`) — скрипт сам перенесёт его на NAS вместо заглушки.
-4. Запустить:
+1. На NAS включить SSH (Control Panel → Network & File Services → Telnet/SSH) — нужен только для одноразового копирования сертификатов, дальше не понадобится.
+2. `cp local-server/.env.example local-server/.env` и заполнить `LOCAL_TOKEN`, `RELAY_URL`, `RELAY_TOKEN` (`RELAY_TOKEN` должен совпадать с тем, что задан в Dokploy для `cloud-relay`).
+3. Один раз:
    ```bash
-   ./scripts/deploy-to-nas.sh admin@<IP-адрес-NAS>
+   ./scripts/setup-nas-docker-context.sh admin@<IP-адрес-NAS>
    ```
-   Скрипт соберёт `local-server` и `mosquitto` под `linux/amd64` (важно, если сам собираешь на Apple Silicon Mac — NAS на Intel/Celeron), перельёт образы через `docker save | ssh ... docker load` и перезапустит контейнеры.
+   Заберёт клиентский TLS-сертификат с NAS (`/etc/docker/tls/{ca,cert,key}.pem`) и создаст docker context `domovoy-nas`.
+4. Деплой (и каждый следующий передеплой после изменений):
+   ```bash
+   ./scripts/deploy-to-nas.sh
+   ```
 5. Проверить `http://<IP-адрес-NAS>:3000` в браузере локальной сети.
 
-Если `docker` на NAS недоступен из SSH-сессии напрямую — проверь `ssh admin@NAS_IP 'which docker'`; если пусто, найди бинарник (`find /share -name docker -type f 2>/dev/null | grep container-station`) и либо добавь его в `PATH`, либо поправь вызовы `docker` в `scripts/deploy-to-nas.sh` на полный путь.
+### Свой список устройств вместо примера
+Образ по умолчанию содержит `devices.example.json`. Чтобы подставить реальные устройства без пересборки:
+```bash
+docker --context domovoy-nas cp local-server/devices.json domovoy-local-server:/app/devices.json
+docker --context domovoy-nas restart domovoy-local-server
+```
 
-### Альтернатива — через QNAP Container Station (GUI)
-Если предпочитаешь разворачивать через GUI, а не SSH: образы также автоматически собираются и публикуются в `ghcr.io/dmanaumov/domovoy-*` при каждом пуше в `main` (`.github/workflows/build-images.yml`). Тогда в Container Station → Create Application вставляется `local-server/docker-compose.qnap.yml` (не забыть сделать пакеты в GitHub Packages публичными). Это медленнее (ждать сборку в Actions) и требует лишних телодвижений с видимостью пакетов — используй, если хочешь автодеплой без своего ноутбука под рукой.
+### Если Docker Remote API недоступен (сеть/фаервол)
+Альтернатива через GUI Container Station: образы автоматически собираются и публикуются в `ghcr.io/dmanaumov/domovoy-*` при каждом пуше в `main` (`.github/workflows/build-images.yml`). В Container Station → Create Application вставляется `local-server/docker-compose.qnap.yml` (сначала сделать пакеты в GitHub Packages публичными).
 
 ## Веб-клиент на iPhone
 
