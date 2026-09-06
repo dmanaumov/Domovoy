@@ -147,7 +147,7 @@ export function checkPort(ip, timeoutMs = 2000) {
  *        devices, ключи которых известны (из eWeLink-облака/кеша)
  * @returns {Promise<Array<{deviceid: string, ip: string, port: number}>>}
  */
-export async function discoverByTcpScan(knownDevices, { port = 8081, probeTimeoutMs = 2000 } = {}) {
+export async function discoverByTcpScan(knownDevices, { port = 8081, probeTimeoutMs = 5000 } = {}) {
   const keys = (knownDevices || []).filter((d) => d?.devicekey && d?.deviceid);
 
   // 1. определение локального IPv4 → подсеть /24.
@@ -191,7 +191,7 @@ export async function discoverByTcpScan(knownDevices, { port = 8081, probeTimeou
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-  console.log(`[discovery] TCP-скан: открытых портов ${port}: ${openIps.length}`);
+  console.log(`[discovery] TCP-скан: открытых портов ${port}: ${openIps.length} (${openIps.join(', ')})`);
 
   if (!openIps.length || !keys.length) return [];
 
@@ -199,14 +199,17 @@ export async function discoverByTcpScan(knownDevices, { port = 8081, probeTimeou
   const found = [];
   await Promise.all(
     openIps.map(async (ip) => {
+      let matched = false;
       for (const k of keys) {
         const { identified } = await probeIdentity({ ip, deviceid: k.deviceid, devicekey: k.devicekey }, probeTimeoutMs);
         if (identified) {
           found.push({ deviceid: k.deviceid, ip, port });
           console.log(`[discovery] LAN-опрос: ${ip} → ${k.deviceid} (${identified})`);
-          break; // один IP = одно устройство
+          matched = true;
+          break;
         }
       }
+      if (!matched) console.log(`[discovery] LAN-опрос: ${ip} — не опознан ни одним ключом`);
     }),
   );
   return found;
