@@ -1,6 +1,6 @@
 // Домовой — веб-клиент.
 import { APP_VERSION } from './version.js';
-import { DEFAULT_CLOUD_URL, DEFAULT_LOCAL_URL } from './config.js';
+import { DEFAULT_CLOUD_URL, DEFAULT_LOCAL_URL, DEFAULT_LOCAL_TOKEN } from './config.js';
 // Логика: сначала пробуем достучаться до локального сервера в LAN (быстро, работает
 // без интернета). Если не вышло за короткий таймаут — идём через облачный релей.
 
@@ -23,9 +23,10 @@ const settings = {
   // location.origin для этого не годится, потому что эта же страница
   // открывается и с домашнего сервера (там origin — локальный, не облачный).
   get cloudUrl() { return localStorage.getItem('domovoy.cloudUrl') || DEFAULT_CLOUD_URL; },
-  // Токен ЛОКАЛЬНОГО сервера (LAN) — общий для всех устройств в доме,
-  // задаётся один раз (вручную или через QR-пейринг ⇄) и не меняется.
-  get token() { return localStorage.getItem('domovoy.token') || ''; },
+  // Токен ЛОКАЛЬНОГО сервера (LAN) — общий для всех устройств в доме.
+  // Известное значение зашито в config.js, вводить руками не нужно;
+  // поле в настройках остаётся на случай, если сервер сгенерирует новый.
+  get token() { return localStorage.getItem('domovoy.token') || DEFAULT_LOCAL_TOKEN; },
   // Токен ОБЛАЧНОЙ инсталляции — свой у каждого браузера/устройства,
   // создаётся автоматически при первом обращении к облаку (см. ensureInstallToken).
   get installToken() { return localStorage.getItem('domovoy.installToken') || ''; },

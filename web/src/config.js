@@ -9,3 +9,12 @@ export const DEFAULT_CLOUD_URL = 'https://domovoy-rmwgyh-b28a81-185-244-48-218.s
 // меняется, поэтому вписывать его руками незачем. Сменится оборудование
 // или IP — правим только эту строку.
 export const DEFAULT_LOCAL_URL = 'http://192.168.0.5:3000';
+
+// Известный токен локального сервера (тот самый LOCAL_TOKEN из
+// local-server/.env на NAS). Он у нас пока фиксированный (задан явно в
+// .env, а не сгенерирован сервером заново), поэтому вписывать его в
+// настройки руками тоже не нужно. Если когда-нибудь уберём LOCAL_TOKEN
+// из .env — сервер сам сгенерирует новый (см. local-server/src/config.js)
+// и эту строку придётся обновить вручную под новое значение из лога
+// (docker logs domovoy-local-server).
+export const DEFAULT_LOCAL_TOKEN = 'f58011ddb499d4d6e81bcd144838ef766ddc70fe14d1240322d12ec75809e3d8';
