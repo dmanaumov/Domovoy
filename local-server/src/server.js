@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import { config } from './config.js';
+import pkg from '../package.json' with { type: 'json' };
 import { createRegistry } from './registry.js';
 import { createHub } from './hub.js';
 import { ewelinkLogin } from './ewelink-api.js';
@@ -115,7 +116,7 @@ app.delete('/api/setup', checkToken, async (_req, res) => {
   res.status(status).json(body);
 });
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, version: pkg.version }));
 
 app.post('/api/setup', checkToken, async (req, res) => {
   const { status, body } = await doSetup(req.body);

@@ -172,15 +172,26 @@ function renderDevices(devices, onToggle) {
 }
 
 async function tryLocal(localUrl, timeoutMs = 800) {
-  if (!localUrl) return false;
+  if (!localUrl) return null; // null = локальный сервер недоступен
   try {
     const res = await fetch(`${localUrl.replace(/\/$/, '')}/api/health`, {
       signal: AbortSignal.timeout(timeoutMs),
     });
-    return res.ok;
+    if (!res.ok) return null;
+    try {
+      const data = await res.json();
+      return data?.version || '';
+    } catch {
+      return '';
+    }
   } catch {
-    return false;
+    return null;
   }
+}
+
+function updateVersionLabel(serverVersion = '') {
+  const versionEl = document.getElementById('version');
+  versionEl.textContent = `v${APP_VERSION}${serverVersion ? ` · сервер v${serverVersion}` : ''}`;
 }
 
 class LocalConnection {
@@ -297,11 +308,12 @@ function rerender() {
 async function connect() {
   currentConn?.close();
 
-  const localOk = await tryLocal(settings.localUrl);
+  const localVer = await tryLocal(settings.localUrl);
 
-  if (localOk) {
+  if (localVer !== null) {
     setStatus('local');
     mode = 'local';
+    updateVersionLabel(localVer);
     document.getElementById('admin-btn').hidden = false;
     currentConn = new LocalConnection(settings.localUrl, settings.token);
     currentConn.onUpdate((devices) => { currentDevices = devices; rerender(); });
