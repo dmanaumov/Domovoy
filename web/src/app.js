@@ -1,5 +1,6 @@
 // Домовой — веб-клиент.
 import { APP_VERSION } from './version.js';
+import { DEFAULT_CLOUD_URL } from './config.js';
 // Логика: сначала пробуем достучаться до локального сервера в LAN (быстро, работает
 // без интернета). Если не вышло за короткий таймаут — идём через облачный релей.
 
@@ -15,11 +16,17 @@ import { APP_VERSION } from './version.js';
 
 const settings = {
   get localUrl() { return localStorage.getItem('domovoy.localUrl') || ''; },
-  // Если облачный адрес не задан явно — используем адрес, с которого сама
-  // страница загружена. Так работает из коробки: страницу отдаёт cloud-relay,
-  // значит именно он и есть облачный сервер, вручную вписывать нечего.
-  get cloudUrl() { return localStorage.getItem('domovoy.cloudUrl') || location.origin; },
+  // Известный адрес облачного релея — вписывать вручную не нужно. Важно:
+  // location.origin для этого не годится, потому что эта же страница
+  // открывается и с домашнего сервера (там origin — локальный, не облачный).
+  get cloudUrl() { return localStorage.getItem('domovoy.cloudUrl') || DEFAULT_CLOUD_URL; },
+  // Токен ЛОКАЛЬНОГО сервера (LAN) — общий для всех устройств в доме,
+  // задаётся один раз (вручную или через QR-пейринг ⇄) и не меняется.
   get token() { return localStorage.getItem('domovoy.token') || ''; },
+  // Токен ОБЛАЧНОЙ инсталляции — свой у каждого браузера/устройства,
+  // создаётся автоматически при первом обращении к облаку (см. ensureInstallToken).
+  get installToken() { return localStorage.getItem('domovoy.installToken') || ''; },
+  set installToken(value) { localStorage.setItem('domovoy.installToken', value || ''); },
   save({ localUrl, cloudUrl, token }) {
     localStorage.setItem('domovoy.localUrl', localUrl || '');
     localStorage.setItem('domovoy.cloudUrl', cloudUrl || '');
@@ -123,6 +130,36 @@ class LocalConnection {
   close() { this.ws.close(); }
 }
 
+// --- авто-регистрация инсталляции в облаке ---
+// Раньше для облака был один общий CLIENT_TOKEN, который приходилось
+// вводить руками. Теперь каждое устройство при первом обращении к облаку
+// само создаёт себе токен через /api/register и сохраняет его у себя —
+// вводить ничего не нужно. Локального (LAN) токена это не касается.
+function guessAlias() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  if (/Android/.test(ua)) return 'Android';
+  if (/Macintosh/.test(ua)) return 'Mac';
+  return 'Устройство';
+}
+
+async function ensureInstallToken() {
+  if (settings.installToken) return;
+  try {
+    const res = await fetch(`${settings.cloudUrl.replace(/\/$/, '')}/api/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alias: guessAlias() }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.token) settings.installToken = data.token;
+  } catch {
+    /* нет сети — попробуем зарегистрироваться при следующем connect() */
+  }
+}
+
 class CloudConnection {
   constructor(baseUrl, token) {
     const wsUrl = baseUrl.replace(/\/$/, '').replace(/^http/, 'ws');
@@ -181,28 +218,27 @@ async function connect() {
     return;
   }
 
-  if (!settings.token) {
+  await ensureInstallToken();
+
+  if (!settings.installToken) {
     setStatus('offline');
-    devicesEl.innerHTML = '<p class="hint">Открой настройки (⚙) и вставь токен — тот самый CLIENT_TOKEN, который задан в переменных окружения cloud-relay в Dokploy.</p>';
+    devicesEl.innerHTML = '<p class="hint">Не удалось зарегистрироваться в облаке — проверь адрес облачного релея (⚙) и соединение с интернетом.</p>';
     return;
   }
 
-  if (settings.cloudUrl) {
-    currentConn = new CloudConnection(settings.cloudUrl, settings.token);
-    currentConn.onUpdate(
-      (devices) => { currentDevices = devices; rerender(); },
-      (online) => setStatus(online ? 'cloud' : 'offline'),
-    );
-    currentConn.onAuthFailure(() => {
-      setStatus('offline');
-      devicesEl.innerHTML = '<p class="hint">Не удалось подключиться к облаку — проверь токен в настройках (⚙) и что он совпадает с CLIENT_TOKEN в Dokploy.</p>';
-    });
-    setStatus('cloud');
-    return;
-  }
-
-  setStatus('offline');
-  devicesEl.innerHTML = '<p class="hint">Не задан адрес ни локального, ни облачного сервера — открой настройки (⚙).</p>';
+  currentConn = new CloudConnection(settings.cloudUrl, settings.installToken);
+  currentConn.onUpdate(
+    (devices) => { currentDevices = devices; rerender(); },
+    (online) => setStatus(online ? 'cloud' : 'offline'),
+  );
+  currentConn.onAuthFailure(() => {
+    // Токен могли сбросить на сервере (например, очистили installations.json) —
+    // регистрируемся заново при следующей попытке.
+    settings.installToken = '';
+    setStatus('offline');
+    devicesEl.innerHTML = '<p class="hint">Соединение с облаком сброшено — пробую переподключиться…</p>';
+  });
+  setStatus('cloud');
 }
 
 // --- настройки ---
@@ -214,7 +250,7 @@ document.getElementById('settings-btn').addEventListener('click', () => {
   dialog.showModal();
 });
 
-document.getElementById('settings-form').addEventListener('close', () => {
+dialog.addEventListener('close', () => {
   if (dialog.returnValue !== 'default') return;
   settings.save({
     localUrl: document.getElementById('local-url').value.trim(),

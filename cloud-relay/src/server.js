@@ -4,10 +4,10 @@ import http from 'node:http';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import { URL } from 'node:url';
+import * as installations from './installations.js';
 
 const PORT = Number(process.env.PORT || 8080);
 const RELAY_TOKEN = process.env.RELAY_TOKEN || ''; // должен совпадать с local-server .env
-const CLIENT_TOKEN = process.env.CLIENT_TOKEN || ''; // временная общая "учётка" для веб-клиента (MVP)
 
 const app = express();
 app.use(express.json());
@@ -21,6 +21,23 @@ app.get('/api/status', (_req, res) => {
   res.json({ homeOnline: homeSocket !== null, lastState });
 });
 
+// Клиент сам регистрируется при первом запуске — получает свой токен,
+// вводить ничего не нужно. Алиас — просто подпись для списка ниже.
+app.post('/api/register', (req, res) => {
+  const alias = typeof req.body?.alias === 'string' ? req.body.alias : '';
+  const token = installations.register(alias);
+  res.json({ token });
+});
+
+// Список инсталляций (алиас, последняя активность) — своя мини-админка.
+// Защищена тем же RELAY_TOKEN, что и подключение домашнего сервера.
+app.get('/api/installations', (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!RELAY_TOKEN || token !== RELAY_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ installations: installations.list() });
+});
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
@@ -32,8 +49,8 @@ server.on('upgrade', (req, socket, head) => {
     if (!RELAY_TOKEN || token !== RELAY_TOKEN) return socket.destroy();
     wss.handleUpgrade(req, socket, head, (ws) => handleHome(ws));
   } else if (url.pathname === '/client') {
-    if (!CLIENT_TOKEN || token !== CLIENT_TOKEN) return socket.destroy();
-    wss.handleUpgrade(req, socket, head, (ws) => handleClient(ws));
+    if (!installations.isValid(token)) return socket.destroy();
+    wss.handleUpgrade(req, socket, head, (ws) => handleClient(ws, token));
   } else {
     socket.destroy();
   }
@@ -65,7 +82,8 @@ function handleHome(ws) {
   });
 }
 
-function handleClient(ws) {
+function handleClient(ws, token) {
+  installations.touch(token);
   clientSockets.add(ws);
   ws.send(JSON.stringify({ type: 'state', devices: lastState.devices }));
   ws.send(JSON.stringify({ type: 'home-status', online: homeSocket !== null }));

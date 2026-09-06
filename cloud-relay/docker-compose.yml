@@ -11,7 +11,14 @@ services:
       dockerfile: cloud-relay/Dockerfile
     restart: unless-stopped
     env_file: .env
+    volumes:
+      # Список инсталляций (кто регистрировался, alias, последняя активность) —
+      # чтобы не терялся при каждом передеплое.
+      - domovoy-relay-data:/app/data
     expose:
       - "8080"
     # Dokploy сам подключит домен к этому сервису через свой Traefik —
     # в разделе "Domains" приложения укажи порт контейнера 8080.
+
+volumes:
+  domovoy-relay-data:
