@@ -150,15 +150,22 @@ export function checkPort(ip, timeoutMs = 2000) {
 export async function discoverByTcpScan(knownDevices, { port = 8081, probeTimeoutMs = 2000 } = {}) {
   const keys = (knownDevices || []).filter((d) => d?.devicekey && d?.deviceid);
 
-  // 1. определение локального IPv4 → подсеть /24
-  const net4 = Object.values(os.networkInterfaces())
-    .flat()
-    .find((i) => i && i.family === 'IPv4' && !i.internal && /^192\.168\./.test(i.address));
+  // 1. определение локального IPv4 → подсеть /24.
+  //    Сначала пробуем явную настройку (домашний роутер в 192.168.x, но бывает 10.x),
+  //    затем берём любой НЕ-внутренний IPv4. ВАЖНО: в контейнере без host-сети
+  //    это будет 172.17.x (bridge Docker) — тогда лучше задать LAN_SUBNET_BASE.
+  const envBase = process.env.LAN_SUBNET_BASE;
+  let net4 = envBase
+    ? { address: `${envBase}.1`, label: `env LAN_SUBNET_BASE=${envBase}` }
+    : Object.values(os.networkInterfaces())
+        .flat()
+        .find((i) => i && i.family === 'IPv4' && !i.internal);
   if (!net4) {
-    console.log('[discovery] нет LAN IPv4 — TCP-обнаружение пропускаем');
+    console.log('[discovery] нет не-внутреннего IPv4 — TCP-обнаружение пропускаем');
     return [];
   }
-  const base = net4.address.split('.').slice(0, 3).join('.');
+  const base = String(net4.address).split('.').slice(0, 3).join('.');
+  console.log(`[discovery] TCP-обнаружение по подсети ${base}.0/24 (источник: ${net4.label || net4.address})`);
 
   // 2. TCP-скан подсети
   const targets = [];
