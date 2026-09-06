@@ -53,6 +53,7 @@ const statusEl = document.getElementById('status');
 const devicesEl = document.getElementById('devices');
 const devicesHintEl = document.getElementById('devices-hint');
 const discoverBtn = document.getElementById('discover-btn');
+let mode = 'local'; // 'local' | 'cloud' — от mode зависит, что показываем
 document.getElementById('version').textContent = `v${APP_VERSION}`;
 
 // --- welcome-заставка: показываем 5 секунд при каждом входе ---
@@ -78,7 +79,8 @@ function showHint(text, { showDiscover = false } = {}) {
   devicesEl.innerHTML = '';
   devicesHintEl.textContent = text;
   devicesEl.append(devicesHintEl);
-  discoverBtn.hidden = !showDiscover;
+  // mDNS-поиск и eWeLink живут на ЛОКАЛЬНОМ сервере — в облаке их не показываем
+  discoverBtn.hidden = !showDiscover || mode !== 'local';
 }
 
 function buildDeviceCard(device, onToggle) {
@@ -293,6 +295,8 @@ async function connect() {
 
   if (localOk) {
     setStatus('local');
+    mode = 'local';
+    document.getElementById('admin-btn').hidden = false;
     currentConn = new LocalConnection(settings.localUrl, settings.token);
     currentConn.onUpdate((devices) => { currentDevices = devices; rerender(); });
     // первичная загрузка через REST, дальше — по WS
@@ -316,6 +320,10 @@ async function connect() {
   }
 
   currentConn = new CloudConnection(settings.cloudUrl, settings.installToken);
+  mode = 'cloud';
+  // В облаке eWeLink/mDNS настраивается ТОЛЬКО на локальном сервере —
+  // тут админка не нужна, показываем лишь то, что шлёт локальный сервер.
+  document.getElementById('admin-btn').hidden = true;
   currentConn.onUpdate(
     (devices) => { currentDevices = devices; rerender(); },
     (online) => setStatus(online ? 'cloud' : 'offline'),

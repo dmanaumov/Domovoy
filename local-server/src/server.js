@@ -58,7 +58,7 @@ async function bootstrap() {
 }
 
 // Сброс eWeLink-настройки: забыть сохранённый токен (остальные устройства/сессии не трогаем)
-app.delete('/api/setup', checkToken, (_req, res) => {
+async function deleteSetup() {
   try {
     fs.unlinkSync(SESSION_FILE);
     try {
@@ -68,49 +68,68 @@ app.delete('/api/setup', checkToken, (_req, res) => {
   } catch {
     /* файла нет — и не надо */
   }
-  res.json({ ok: true });
-});
+  return { status: 200, body: { ok: true } };
+}
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
-
-// Свободы: ставим eWeLink-аккаунт (email/пароль) при первичной настройке.
+// Ставим eWeLink-аккаунт (email/пароль) при первичной настройке.
 // Сохраняем только сессию (at/appid/region), НЕ пароль. Устройства не храним.
-app.post('/api/setup', checkToken, async (req, res) => {
-  const { login, password, region = 'eu' } = req.body || {};
+async function doSetup(body) {
+  const { login, password, region = 'eu' } = body || {};
   if (!login || !password) {
-    return res.status(400).json({ error: 'нужны login и password' });
+    return { status: 400, body: { error: 'нужны login и password' } };
   }
   const result = await ewelinkLogin(String(login), String(password), String(region));
   if (!result.ok) {
-    return res.status(401).json({ error: 'не удалось войти в eWeLink', detail: result });
+    return { status: 401, body: { error: 'не удалось войти в eWeLink', detail: result } };
   }
   const session = { at: result.at, appid: result.appid, region: result.region, login: String(login) };
   saveSession(session);
   registry.setCloudSession(session);
   await registry.refreshCloud();
   await registry.scanLan();
-  res.json({ ok: true, devices: registry.getDevices() });
-});
+  return { status: 200, body: { ok: true, devices: registry.getDevices() } };
+}
 
 // Статус eWeLink-настройки (чтобы веб не просил логин/пароль заново,
 // если сессия уже сохранена на сервере)
-app.get('/api/setup', checkToken, (_req, res) => {
+function getSetup() {
   const session = loadSession();
   if (session?.at && session?.appid) {
-    res.json({ configured: true, login: session.login || null, region: session.region || null });
-  } else {
-    res.json({ configured: false });
+    return { status: 200, body: { configured: true, login: session.login || null, region: session.region || null } };
   }
-});
+  return { status: 200, body: { configured: false } };
+}
 
 // mDNS-разведка прямо сейчас
-app.get('/api/discover', checkToken, async (_req, res) => {
+async function doDiscover() {
   try {
     await registry.scanLan();
-    res.json({ found: registry.getDevices() });
+    return { status: 200, body: { found: registry.getDevices() } };
   } catch (err) {
-    res.status(500).json({ error: 'discover failed', detail: err.message });
+    return { status: 500, body: { error: 'discover failed', detail: err.message } };
   }
+}
+
+app.delete('/api/setup', checkToken, async (_req, res) => {
+  const { status, body } = await deleteSetup();
+  res.status(status).json(body);
+});
+
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+app.post('/api/setup', checkToken, async (req, res) => {
+  const { status, body } = await doSetup(req.body);
+  res.status(status).json(body);
+});
+
+app.get('/api/setup', checkToken, (_req, res) => {
+  const { status, body } = getSetup();
+  res.status(status).json(body);
+});
+
+app.get('/api/discover', checkToken, async (_req, res) => {
+  const { status, body } = await doDiscover();
+  res.status(status).json(body);
 });
 
 app.get('/api/devices', checkToken, (_req, res) => {

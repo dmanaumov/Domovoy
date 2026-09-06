@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
+import net from 'node:net';
 import { discoverDevices } from './discovery.js';
 import { fetchEWelinkDevices } from './ewelink-api.js';
 
@@ -107,6 +108,22 @@ class DeviceRegistry extends EventEmitter {
     this.emit('cloud-updated');
   }
 
+  /** Проверяем, жив ли хост по TCP (Sonoff отвечает на 8081), а не только по mDNS.
+   *  mDNS в Docker/Wi-Fi-изоляции часто теряет announce, а TCP-порт надёжен. */
+  _tcpProbe(device, timeoutMs = 1200) {
+    return new Promise((resolve) => {
+      const host = device?.ip;
+      const port = device?.port || 8081;
+      if (!host) return resolve(false);
+      const socket = new net.Socket();
+      socket.setTimeout(timeoutMs);
+      socket.once('connect', () => { socket.destroy(); resolve(true); });
+      socket.once('timeout', () => { socket.destroy(); resolve(false); });
+      socket.once('error', () => { socket.destroy(); resolve(false); });
+      socket.connect(port, host);
+    });
+  }
+
   /** mDNS-скан локальной сети. НЕ стирает предыдущие находки сразу:
    *  mDNS-ответы иногда теряются (multicast-isolation), поэтому оставляем
    *  последний известный адрес и фиксируем lastSeen. offline выставляется
@@ -118,7 +135,18 @@ class DeviceRegistry extends EventEmitter {
       for (const d of found) {
         const prev = this.lanDevices.get(d.deviceid);
         this.lanDevices.set(d.deviceid, { ...(prev || {}), ...d, lastSeen: now });
+        this.emit('lan-updated');
       }
+      // Живость известных устройств подтверждаем TCP-пробой — mDNS может молчать
+      await Promise.all(
+        [...this.lanDevices.values()].map(async (dev) => {
+          const alive = await this._tcpProbe(dev);
+          if (alive) {
+            const prev = this.lanDevices.get(dev.deviceid);
+            this.lanDevices.set(dev.deviceid, { ...(prev || {}), ...dev, lastSeen: Date.now() });
+          }
+        }),
+      );
       this._saveCache();
       this.emit('lan-updated');
     } catch (err) {
