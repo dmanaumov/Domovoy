@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Для вставки в QNAP Container Station → Create Application → Docker Compose.
 # В отличие от docker-compose.yml (для обычного docker-хоста с git+docker CLI),
 # тут используются ГОТОВЫЕ образы из ghcr.io — Container Station сама Dockerfile

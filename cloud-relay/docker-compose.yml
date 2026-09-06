@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Это то, что разворачивается на сервере через Dokploy (Application type: Docker Compose).
 # Собирается из КОРНЯ репозитория, потому что образу нужен ../web (общий PWA-клиент).
 # MQTT / Mosquitto / local-server тут НЕТ и не должно быть — они остаются дома, на Raspberry Pi.

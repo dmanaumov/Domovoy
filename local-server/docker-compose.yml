@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Запускать из папки local-server/: docker compose up -d --build
 # build.context указывает на корень репозитория, т.к. образу нужен ../web.
 
