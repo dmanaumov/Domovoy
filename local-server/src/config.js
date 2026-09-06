@@ -3,8 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const DEVICES_FILE = process.env.DEVICES_FILE || path.resolve('devices.json');
-
 // LOCAL_TOKEN больше не нужно придумывать и вписывать руками: если он не
 // задан явно через переменную окружения, сервер сам генерирует случайный
 // токен при первом запуске и сохраняет его в LOCAL_TOKEN_FILE (том/volume,
@@ -32,20 +30,10 @@ function loadOrCreateLocalToken() {
   return token;
 }
 
-function loadDevices() {
-  if (!fs.existsSync(DEVICES_FILE)) {
-    console.warn(`[config] ${DEVICES_FILE} не найден — используем пустой список устройств.`);
-    return [];
-  }
-  const raw = fs.readFileSync(DEVICES_FILE, 'utf-8');
-  return JSON.parse(raw);
-}
-
 export const config = {
   port: Number(process.env.PORT || 3000),
   mqttUrl: process.env.MQTT_URL || 'mqtt://localhost:1883',
   localToken: loadOrCreateLocalToken(),
   relayUrl: process.env.RELAY_URL || '', // например wss://domovoy.example.com — пусто = релей выключен
   relayToken: process.env.RELAY_TOKEN || '',
-  devices: loadDevices(),
 };

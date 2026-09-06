@@ -28,12 +28,6 @@ services:
       LOCAL_TOKEN: "ЗАМЕНИ-НА-СВОЙ-LOCAL_TOKEN"
       RELAY_URL: "ЗАМЕНИ-НА-wss://твой-домен-релея"
       RELAY_TOKEN: "ЗАМЕНИ-НА-СВОЙ-RELAY_TOKEN"
-    # devices.json из образа — это devices.example.json (заглушка).
-    # Чтобы подставить свои реальные устройства без пересборки образа,
-    # положи файл на NAS (через File Station) и раскомментируй volume ниже,
-    # указав реальный путь на своём NAS:
-    # volumes:
-    #   - /share/Container/domovoy/devices.json:/app/devices.json:ro
     ports:
       - "3000:3000"
 

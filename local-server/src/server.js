@@ -2,14 +2,18 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import http from 'node:http';
 import path from 'node:path';
+import fs from 'node:fs';
 import { config } from './config.js';
-import { createMqttHub } from './mqtt.js';
-import { discoverDevices } from './discovery.js';
+import { createRegistry } from './registry.js';
+import { createHub } from './hub.js';
+import { ewelinkLogin } from './ewelink-api.js';
 import { connectRelay } from './relay-client.js';
 
 const app = express();
 app.use(express.json());
 app.use(express.static(path.resolve('public'))); // веб-клиент (web/), скопированный в образ как ./public
+
+const SESSION_FILE = process.env.EWELINK_SESSION_FILE || './data/ewelink-session.json';
 
 function checkToken(req, res, next) {
   if (!config.localToken) return next(); // токен не задан — доступ открыт (для разработки в LAN)
@@ -19,22 +23,66 @@ function checkToken(req, res, next) {
   next();
 }
 
-const hub = createMqttHub();
+function loadSession() {
+  try {
+    return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(session) {
+  try {
+    fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
+    fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2));
+  } catch (err) {
+    console.error(`[server] не смог сохранить сессию eWeLink (${SESSION_FILE}):`, err.message);
+  }
+}
+
+const registry = createRegistry();
+const hub = createHub(registry);
+
+// первичная настройка:
+// 1) mDNS-скан -> что есть в локальной сети
+// 2) логин eWeLink -> devicekey и имена для найденных deviceid
+async function bootstrap() {
+  const session = loadSession();
+  if (session?.at && session?.appid) {
+    registry.setCloudSession(session);
+    await registry.refreshCloud();
+  }
+  registry.startScanning();
+  await registry.scanLan();
+  console.log(`[setup] найдено устройств в LAN: ${registry.getDevices().length}`);
+}
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// mDNS-разведка: найти eWeLink-устройства в локальной сети
-// (devicekey не передаётся в mDNS — будет заполнен из devices.json / настройки)
+// Свободы: ставим eWeLink-аккаунт (email/пароль) при первичной настройке.
+// Сохраняем только сессию (at/appid/region), НЕ пароль. Устройства не храним.
+app.post('/api/setup', checkToken, async (req, res) => {
+  const { login, password, region = 'eu' } = req.body || {};
+  if (!login || !password) {
+    return res.status(400).json({ error: 'нужны login и password' });
+  }
+  const result = await ewelinkLogin(String(login), String(password), String(region));
+  if (!result.ok) {
+    return res.status(401).json({ error: 'не удалось войти в eWeLink', detail: result });
+  }
+  const session = { at: result.at, appid: result.appid, region: result.region };
+  saveSession(session);
+  registry.setCloudSession(session);
+  await registry.refreshCloud();
+  await registry.scanLan();
+  res.json({ ok: true, devices: registry.getDevices() });
+});
+
+// mDNS-разведка прямо сейчас
 app.get('/api/discover', checkToken, async (_req, res) => {
   try {
-    const found = await discoverDevices();
-    const known = new Set(config.devices.map((d) => d.deviceid));
-    res.json({
-      found: found.map((d) => ({
-        ...d,
-        known: known.has(d.deviceid), // уже добавлено в систему?
-      })),
-    });
+    await registry.scanLan();
+    res.json({ found: registry.getDevices() });
   } catch (err) {
     res.status(500).json({ error: 'discover failed', detail: err.message });
   }
@@ -79,9 +127,10 @@ hub.on('change', broadcastState);
 
 connectRelay(hub);
 
-server.listen(config.port, () => {
-  console.log(`[server] Домовой (локальный сервер) слушает на порту ${config.port}`);
-  console.log(`[server] LOCAL_TOKEN: ${config.localToken}`);
-  console.log('[server] Впиши этот токен в настройки (⚙) первого клиента — дальше остальные');
-  console.log('[server] устройства подключаются через QR-пейринг (⇄), без повторного ввода.');
+bootstrap().then(() => {
+  server.listen(config.port, () => {
+    console.log(`[server] Домовой (локальный сервер) слушает на порту ${config.port}`);
+    console.log(`[server] LOCAL_TOKEN: ${config.localToken}`);
+    console.log('[server] eWeLink-настройка: POST /api/setup {login, password, region}');
+  });
 });

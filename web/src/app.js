@@ -69,7 +69,7 @@ function setStatus(mode) {
 
 function renderDevices(devices, onToggle) {
   if (!devices?.length) {
-    devicesEl.innerHTML = '<p class="hint">Устройства не найдены. Проверь devices.json на сервере.</p>';
+    devicesEl.innerHTML = '<p class="hint">Устройства не найдены. Запусти mDNS-разведку или настрой eWeLink (POST /api/setup).</p>';
     return;
   }
   devicesEl.innerHTML = '';
