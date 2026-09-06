@@ -108,6 +108,7 @@ export function createHub(registry) {
   // mDNS-мониторинг: получаем реальный статус eWeLink-устройств
   // (data1..data4 + iv, расшифрованные devicekey из реестра)
   hub.stopMdns = startMdnsMonitor((deviceId, dataB64, ivB64) => {
+    registry.markSeen(deviceId); // даже если это просто announce — устройство живо
     const device = registry.getDevice(deviceId);
     if (!device?.devicekey) return;
     const state = decryptMdnsData(dataB64, ivB64, device.devicekey);

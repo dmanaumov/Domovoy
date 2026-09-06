@@ -56,6 +56,10 @@ export function discoverDevices(timeoutMs = SCAN_TIMEOUT_MS) {
       const found = [];
       for (const svc of services.values()) {
         if (!svc.id) continue;
+        // RF-мосты/повторители (тип rf, ретрансляторы) переключить нашим
+        // протоколом нельзя, а сами они «светятся» в mDNS как eWeLink —
+        // в список управляемых устройств они не должны попадать.
+        if (svc.type === 'rf') continue;
         const ip = svc.target ? byHostname.get(svc.target.toLowerCase()) : null;
         found.push({
           deviceid: svc.id,

@@ -139,7 +139,7 @@ export function decryptMdnsData(dataB64, ivB64, devicekey) {
  * с зашифрованным состоянием (data1..data4 + iv). Модуль собирает поля и
  * возвращает сырые данные (devicekey hub подставляет сам, расшифровывая).
  *
- * @param {(deviceId: string, dataB64: string, ivB64: string) => void} onRaw
+ * @param {(deviceId: string, dataB64: string, ivB64: string, type?: string) => void} onRaw
  * @returns {() => void} stop-функция
  */
 export function startMdnsMonitor(onRaw) {
@@ -174,7 +174,7 @@ export function startMdnsMonitor(onRaw) {
         const raw = ''.concat(txt.data1 || '', txt.data2 || '', txt.data3 || '', txt.data4 || '');
         if (!raw) continue;
         try {
-          onRaw(txt.id, raw, txt.iv);
+          onRaw(txt.id, raw, txt.iv, txt.type);
         } catch { /* не роняем mDNS из-за ошибки обработчика */ }
       }
     });

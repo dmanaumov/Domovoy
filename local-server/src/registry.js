@@ -40,33 +40,50 @@ class DeviceRegistry extends EventEmitter {
     this.cloudDevices.clear();
   }
 
-  /** Загрузить devicekey всех устройств из облака */
+  /** Загрузить devicekey всех устройств из облака.
+   *  При неудаче НЕ очищаем предыдущий список — иначе облачный релей
+   *  «проседает» до кучки mDNS-устройств, когда eWeLink временно недоступен. */
   async refreshCloud() {
     if (!this.cloudConfigured) return;
+    let devices;
     try {
-      const devices = await fetchEWelinkDevices(this.at, this.appid, this.region);
-      this.cloudDevices.clear();
-      for (const d of devices) {
-        this.cloudDevices.set(d.deviceid, d);
-      }
-      this.emit('cloud-updated');
+      devices = await fetchEWelinkDevices(this.at, this.appid, this.region);
     } catch (err) {
       console.error('[registry] ошибка получения устройств из облака:', err.message);
+      return;
     }
+    this.cloudDevices.clear();
+    for (const d of devices) {
+      this.cloudDevices.set(d.deviceid, d);
+    }
+    this.emit('cloud-updated');
   }
 
-  /** mDNS-скан локальной сети */
+  /** mDNS-скан локальной сети. НЕ стирает предыдущие находки сразу:
+   *  mDNS-ответы иногда теряются (multicast-isolation), поэтому оставляем
+   *  последний известный адрес и фиксируем lastSeen. offline выставляется
+   *  по зашкаливанию lastSeen, а не по факту одного неудачного скана. */
   async scanLan() {
+    const now = Date.now();
     try {
       const found = await discoverDevices(8000);
-      this.lanDevices.clear();
       for (const d of found) {
-        this.lanDevices.set(d.deviceid, d);
+        const prev = this.lanDevices.get(d.deviceid);
+        this.lanDevices.set(d.deviceid, { ...(prev || {}), ...d, lastSeen: now });
       }
       this.emit('lan-updated');
     } catch (err) {
       console.error('[registry] ошибка mDNS-скана:', err.message);
     }
+  }
+
+  /** Метаданные из mDNS (даже без devicekey): обновляет ip и lastSeen.
+   *  RF-мосты игнорируем — это ретрансляторы, переключить их нельзя. */
+  markSeen(deviceid, info = {}) {
+    if (!deviceid) return;
+    if (info.type === 'rf') return;
+    const prev = this.lanDevices.get(deviceid) || {};
+    this.lanDevices.set(deviceid, { ...prev, ...info, deviceid, lastSeen: Date.now() });
   }
 
   /** Тип протокола для устройства: ewelink-lan или mqtt (если известен) */
@@ -78,9 +95,12 @@ class DeviceRegistry extends EventEmitter {
 
   /** Слить облачные + LAN данные в единое живое устройство */
   merge() {
+    const now = Date.now();
+    const LAN_STALE_MS = 2 * 60 * 1000; // считаем «не в сети», если не видели 2 минуты
     const result = [];
     for (const [deviceid, lan] of this.lanDevices) {
       const cloud = this.cloudDevices.get(deviceid);
+      const offline = !lan.lastSeen || (now - lan.lastSeen > LAN_STALE_MS);
       result.push({
         deviceid,
         id: `ew-${deviceid}`,
@@ -93,6 +113,7 @@ class DeviceRegistry extends EventEmitter {
         devicekey: cloud?.devicekey || null, // null = не удалось получить ключ
         home: cloud?.home || null,
         room: cloud?.room || null,
+        offline,
         // как подключаться:
         protocol: 'ewelink-lan',
       });
