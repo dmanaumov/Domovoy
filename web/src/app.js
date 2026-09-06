@@ -82,8 +82,10 @@ function showHint(text, { showDiscover = false } = {}) {
 }
 
 function buildDeviceCard(device, onToggle) {
+  const offline = device.offline === true;
+  const noKey = !device.devicekey;
   const card = document.createElement('div');
-  card.className = 'device-card';
+  card.className = `device-card${offline ? ' device-card--offline' : ''}`;
 
   const info = document.createElement('div');
   const name = document.createElement('div');
@@ -91,16 +93,21 @@ function buildDeviceCard(device, onToggle) {
   name.textContent = device.name;
   const lastSeen = document.createElement('span');
   lastSeen.className = 'last-seen';
-  lastSeen.textContent = device.state?.lastSeen
-    ? `обновлено ${new Date(device.state.lastSeen).toLocaleTimeString('ru-RU')}`
-    : 'нет данных';
+  if (offline) {
+    lastSeen.textContent = 'нет в сети';
+  } else {
+    lastSeen.textContent = device.state?.lastSeen
+      ? `обновлено ${new Date(device.state.lastSeen).toLocaleTimeString('ru-RU')}`
+      : noKey ? 'ждёт настройки eWeLink'
+        : 'нет данных';
+  }
   info.append(name, lastSeen);
 
   const toggle = document.createElement('button');
   const isOn = device.state?.power === 'ON';
   toggle.className = `toggle${isOn ? ' on' : ''}`;
   toggle.setAttribute('aria-label', `Переключить ${device.name}`);
-  if (device.offline) toggle.disabled = true;
+  toggle.disabled = offline;
   toggle.addEventListener('click', () => onToggle(device.id, isOn ? 'OFF' : 'ON'));
 
   card.append(info, toggle);

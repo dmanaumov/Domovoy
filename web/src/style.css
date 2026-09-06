@@ -134,6 +134,26 @@ body {
 .device-card .name { font-size: 1rem; }
 .device-card .last-seen { display: block; font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
 
+.device-card--offline {
+  opacity: 0.55;
+}
+.device-card--offline .name {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+.device-card--offline .last-seen {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.device-card--offline .toggle {
+  background: var(--off);
+  cursor: default;
+}
+.device-card--offline .toggle::after {
+  background: var(--muted);
+}
+
 .toggle {
   width: 56px;
   height: 32px;
