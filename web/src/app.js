@@ -1,4 +1,5 @@
 // Домовой — веб-клиент.
+import { APP_VERSION } from './version.js';
 // Логика: сначала пробуем достучаться до локального сервера в LAN (быстро, работает
 // без интернета). Если не вышло за короткий таймаут — идём через облачный релей.
 
@@ -28,6 +29,8 @@ const settings = {
 
 const statusEl = document.getElementById('status');
 const devicesEl = document.getElementById('devices');
+
+document.getElementById('version').textContent = `v${APP_VERSION}`;
 
 // --- welcome-заставка: показываем 5 секунд при каждом входе ---
 const SPLASH_DURATION_MS = 5000;
