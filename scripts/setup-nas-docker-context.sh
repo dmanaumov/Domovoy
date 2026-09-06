@@ -16,7 +16,8 @@ CERT_DIR="$HOME/.docker/domovoy-nas"
 
 mkdir -p "$CERT_DIR"
 echo "==> Забираю TLS-сертификаты с NAS ($NAS_HOST:/etc/docker/tls/)..."
-scp "$NAS_HOST:/etc/docker/tls/ca.pem" "$NAS_HOST:/etc/docker/tls/cert.pem" "$NAS_HOST:/etc/docker/tls/key.pem" "$CERT_DIR/"
+# -O форсирует старый scp-протокол (не требует включённого SFTP на NAS)
+scp -O "$NAS_HOST:/etc/docker/tls/ca.pem" "$NAS_HOST:/etc/docker/tls/cert.pem" "$NAS_HOST:/etc/docker/tls/key.pem" "$CERT_DIR/"
 chmod 600 "$CERT_DIR"/*.pem
 
 echo "==> Создаю docker context 'domovoy-nas' (tcp://$NAS_IP:2376, TLS)..."
