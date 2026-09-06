@@ -17,6 +17,103 @@ let homeSocket = null;
 let lastState = { devices: [] };
 const clientSockets = new Set();
 
+// Простая админ-страница со списком зарегистрированных инсталляций.
+// Сама страница не содержит секретов — токен (RELAY_TOKEN) вводится
+// в браузере и хранится только в его localStorage, запросы идут к уже
+// защищённому GET /api/installations.
+const ADMIN_HTML = `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Домовой — админка</title>
+<link rel="stylesheet" href="/src/style.css" />
+<style>
+  body { padding: 1.5rem; padding-bottom: 1.5rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 1rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--off); font-size: 0.9rem; }
+  th { color: var(--muted); font-weight: 500; }
+  #login { display: flex; gap: 0.5rem; max-width: 420px; }
+  #login input { flex: 1; padding: 0.5rem; border-radius: 8px; border: 1px solid var(--off); background: var(--card); color: var(--text); }
+  #login button, #logout { padding: 0.5rem 1rem; border-radius: 8px; border: none; background: var(--accent); color: #1a1512; cursor: pointer; }
+  #logout { background: var(--off); color: var(--text); margin-top: 1rem; }
+  .error { color: #e07a72; margin-top: 0.5rem; }
+  .hint { color: var(--muted); }
+</style>
+</head>
+<body>
+  <h1>Домовой — зарегистрированные инсталляции</h1>
+  <div id="login">
+    <input type="password" id="relay-token" placeholder="RELAY_TOKEN" />
+    <button id="login-btn">Войти</button>
+  </div>
+  <p id="error" class="error"></p>
+  <div id="content" hidden>
+    <table>
+      <thead><tr><th>Alias</th><th>ID</th><th>Создана</th><th>Последняя активность</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <button id="logout">Выйти</button>
+  </div>
+<script>
+  const KEY = 'domovoy.adminToken';
+  const errorEl = document.getElementById('error');
+  const loginEl = document.getElementById('login');
+  const contentEl = document.getElementById('content');
+  const rowsEl = document.getElementById('rows');
+
+  function fmt(iso) {
+    if (!iso) return '\u2014';
+    return new Date(iso).toLocaleString('ru-RU');
+  }
+
+  async function load(token) {
+    errorEl.textContent = '';
+    try {
+      const res = await fetch('/api/installations', { headers: { Authorization: 'Bearer ' + token } });
+      if (res.status === 401) {
+        localStorage.removeItem(KEY);
+        loginEl.hidden = false;
+        contentEl.hidden = true;
+        errorEl.textContent = 'Неверный RELAY_TOKEN.';
+        return;
+      }
+      const data = await res.json();
+      rowsEl.innerHTML = '';
+      for (const inst of data.installations) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = \`<td>\${inst.alias}</td><td>\${inst.id}</td><td>\${fmt(inst.createdAt)}</td><td>\${fmt(inst.lastSeen)}</td>\`;
+        rowsEl.append(tr);
+      }
+      loginEl.hidden = true;
+      contentEl.hidden = false;
+    } catch {
+      errorEl.textContent = 'Не удалось загрузить список.';
+    }
+  }
+
+  document.getElementById('login-btn').addEventListener('click', () => {
+    const token = document.getElementById('relay-token').value.trim();
+    if (!token) return;
+    localStorage.setItem(KEY, token);
+    load(token);
+  });
+
+  document.getElementById('logout').addEventListener('click', () => {
+    localStorage.removeItem(KEY);
+    loginEl.hidden = false;
+    contentEl.hidden = true;
+  });
+
+  const saved = localStorage.getItem(KEY);
+  if (saved) load(saved);
+</script>
+</body>
+</html>`;
+
+app.get('/admin', (_req, res) => res.type('html').send(ADMIN_HTML));
+
 app.get('/api/status', (_req, res) => {
   res.json({ homeOnline: homeSocket !== null, lastState });
 });
