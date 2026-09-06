@@ -27,6 +27,10 @@ services:
       - "3000:3000"
     volumes:
       - ./devices.json:/app/devices.json:ro
+      # Здесь сервер хранит сгенерированный LOCAL_TOKEN (data/local-token.json),
+      # чтобы он не менялся при каждом пересоздании контейнера.
+      - local-server-data:/app/data
 
 volumes:
   mosquitto-data:
+  local-server-data:

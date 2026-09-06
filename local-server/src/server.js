@@ -60,4 +60,7 @@ connectRelay(hub);
 
 server.listen(config.port, () => {
   console.log(`[server] Домовой (локальный сервер) слушает на порту ${config.port}`);
+  console.log(`[server] LOCAL_TOKEN: ${config.localToken}`);
+  console.log('[server] Впиши этот токен в настройки (⚙) первого клиента — дальше остальные');
+  console.log('[server] устройства подключаются через QR-пейринг (⇄), без повторного ввода.');
 });

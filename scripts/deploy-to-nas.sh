@@ -23,7 +23,9 @@ set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
-: "${LOCAL_TOKEN:?LOCAL_TOKEN не задан в $ENV_FILE}"
+# LOCAL_TOKEN можно не задавать — если пусто, сервер сам сгенерирует токен
+# при первом запуске и сохранит его на volume (см. ниже -v ...:/app/data).
+: "${LOCAL_TOKEN:=}"
 
 cd "$(dirname "$0")/.."
 export DOCKER_CONTEXT="$CONTEXT"
@@ -48,7 +50,12 @@ docker run -d --name domovoy-local-server --network domovoy --restart unless-sto
   -e LOCAL_TOKEN="$LOCAL_TOKEN" \
   -e RELAY_URL="${RELAY_URL:-}" \
   -e RELAY_TOKEN="${RELAY_TOKEN:-}" \
+  -v domovoy-local-server-data:/app/data \
   domovoy-local-server:latest
 
 echo "==> Готово: http://<IP-адрес-NAS>:3000"
 echo "    Свой список устройств вместо примера — см. README, раздел про devices.json."
+if [ -z "$LOCAL_TOKEN" ]; then
+  echo "==> LOCAL_TOKEN не задан в $ENV_FILE — сервер сгенерировал свой, смотри лог:"
+  echo "    docker --context $CONTEXT logs domovoy-local-server | grep LOCAL_TOKEN"
+fi

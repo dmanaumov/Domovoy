@@ -1,6 +1,6 @@
 // Домовой — веб-клиент.
 import { APP_VERSION } from './version.js';
-import { DEFAULT_CLOUD_URL } from './config.js';
+import { DEFAULT_CLOUD_URL, DEFAULT_LOCAL_URL } from './config.js';
 // Логика: сначала пробуем достучаться до локального сервера в LAN (быстро, работает
 // без интернета). Если не вышло за короткий таймаут — идём через облачный релей.
 
@@ -15,7 +15,10 @@ import { DEFAULT_CLOUD_URL } from './config.js';
 })();
 
 const settings = {
-  get localUrl() { return localStorage.getItem('domovoy.localUrl') || ''; },
+  // Известный IP локального сервера в домашней сети — вписывать руками не
+  // нужно (см. config.js). Токен для него всё же придётся ввести один раз:
+  // его генерирует сам сервер при первом запуске (см. ниже).
+  get localUrl() { return localStorage.getItem('domovoy.localUrl') || DEFAULT_LOCAL_URL; },
   // Известный адрес облачного релея — вписывать вручную не нужно. Важно:
   // location.origin для этого не годится, потому что эта же страница
   // открывается и с домашнего сервера (там origin — локальный, не облачный).
@@ -264,14 +267,17 @@ async function connect() {
 
 // --- настройки ---
 const dialog = document.getElementById('settings-dialog');
-document.getElementById('settings-btn').addEventListener('click', () => {
+
+function openSettingsDialog() {
   document.getElementById('local-url').value = settings.localUrl;
   document.getElementById('cloud-url').value = settings.cloudUrl;
   document.getElementById('token').value = settings.token;
   document.getElementById('install-alias').value = settings.installAlias;
   document.getElementById('install-alias').placeholder = guessAlias();
   dialog.showModal();
-});
+}
+
+document.getElementById('settings-btn').addEventListener('click', openSettingsDialog);
 
 dialog.addEventListener('close', () => {
   if (dialog.returnValue !== 'default') return;
@@ -311,6 +317,13 @@ document.getElementById('share-close').addEventListener('click', () => shareDial
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+// Первый запуск на этом устройстве: адрес локального сервера уже известен
+// (см. config.js), но токен для него сервер генерирует сам при старте и
+// его нужно один раз вписать вручную (см. лог local-server). Без него
+// открывать настройки самим пользователем незачем было бы объяснять —
+// поэтому открываем их сразу.
+if (!settings.token) openSettingsDialog();
 
 connect();
 setInterval(connect, 15000); // периодически перепроверяем локально/облако (например, вернулись домой)
