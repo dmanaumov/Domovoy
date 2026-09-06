@@ -5,6 +5,10 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { config } from './config.js';
 import pkg from '../package.json' with { type: 'json' };
+
+// Версия сборки: GH Actions задаёт APP_VERSION = 0.1.<число коммитов>.
+// Локально (вне образа) версия просто берётся из package.json.
+const APP_VERSION = process.env.APP_VERSION || pkg.version;
 import { createRegistry } from './registry.js';
 import { createHub } from './hub.js';
 import { ewelinkLogin } from './ewelink-api.js';
@@ -116,7 +120,7 @@ app.delete('/api/setup', checkToken, async (_req, res) => {
   res.status(status).json(body);
 });
 
-app.get('/api/health', (_req, res) => res.json({ ok: true, version: pkg.version }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, version: APP_VERSION }));
 
 app.post('/api/setup', checkToken, async (req, res) => {
   const { status, body } = await doSetup(req.body);

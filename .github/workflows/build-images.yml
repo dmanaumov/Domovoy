@@ -27,6 +27,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Вычислить номер сборки (число коммитов в main)
+        id: buildnum
+        run: |
+          COUNT=$(git rev-list --count HEAD)
+          echo "build_number=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "версия сборки: 0.1.$COUNT"
+
       - name: Build and push local-server
         uses: docker/build-push-action@v6
         with:
@@ -34,6 +41,8 @@ jobs:
           file: local-server/Dockerfile
           push: true
           platforms: linux/amd64
+          build-args: |
+            APP_VERSION=0.1.${{ steps.buildnum.outputs.build_number }}
           tags: ghcr.io/${{ github.repository_owner }}/domovoy-local-server:latest
 
       - name: Build and push mosquitto (с запечённым конфигом)
