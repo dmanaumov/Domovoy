@@ -1,0 +1,41 @@
+version: "3.8"
+
+# Для вставки в QNAP Container Station → Create Application → Docker Compose.
+# В отличие от docker-compose.yml (для обычного docker-хоста с git+docker CLI),
+# тут используются ГОТОВЫЕ образы из ghcr.io — Container Station сама Dockerfile
+# не собирает, только тянет образы. Образы собираются автоматически в GitHub
+# Actions при каждом пуше (.github/workflows/build-images.yml).
+#
+# Перед деплоем замени плейсхолдеры ЗАМЕНИ-... на реальные значения.
+
+services:
+  mosquitto:
+    image: ghcr.io/dmanaumov/domovoy-mosquitto:latest
+    restart: unless-stopped
+    volumes:
+      - mosquitto-data:/mosquitto/data
+    ports:
+      - "1883:1883"
+
+  local-server:
+    image: ghcr.io/dmanaumov/domovoy-local-server:latest
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      PORT: "3000"
+      MQTT_URL: "mqtt://mosquitto:1883"
+      LOCAL_TOKEN: "ЗАМЕНИ-НА-СВОЙ-LOCAL_TOKEN"
+      RELAY_URL: "ЗАМЕНИ-НА-wss://твой-домен-релея"
+      RELAY_TOKEN: "ЗАМЕНИ-НА-СВОЙ-RELAY_TOKEN"
+    # devices.json из образа — это devices.example.json (заглушка).
+    # Чтобы подставить свои реальные устройства без пересборки образа,
+    # положи файл на NAS (через File Station) и раскомментируй volume ниже,
+    # указав реальный путь на своём NAS:
+    # volumes:
+    #   - /share/Container/domovoy/devices.json:/app/devices.json:ro
+    ports:
+      - "3000:3000"
+
+volumes:
+  mosquitto-data:
