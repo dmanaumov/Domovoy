@@ -68,6 +68,7 @@ const ADMIN_HTML = `<!doctype html>
     <input type="password" id="relay-token" placeholder="RELAY_TOKEN" />
     <button id="login-btn">Войти</button>
   </div>
+  <p class="hint">Это RELAY_TOKEN (секрет между домашним сервером и релеем, задан в Dokploy у cloud-relay) — не LOCAL_TOKEN из настроек веб-клиента.</p>
   <p id="error" class="error"></p>
   <div id="content" hidden>
     <table>
