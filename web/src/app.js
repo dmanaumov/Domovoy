@@ -594,6 +594,10 @@ function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === name));
   document.getElementById('panel-devices').hidden = name !== 'devices';
   document.getElementById('panel-resources').hidden = name !== 'resources';
+  if (name === 'resources') {
+    renderResourceGraph(cpuCtx, cpuHist, '#e08a3e');
+    renderResourceGraph(ramCtx, ramHist, '#4caf6a');
+  }
 }
 document.querySelectorAll('.tab-btn').forEach((b) => {
   b.addEventListener('click', () => switchTab(b.dataset.tab));

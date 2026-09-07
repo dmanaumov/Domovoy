@@ -206,16 +206,6 @@ body {
 }
 .top-btn:disabled { opacity: 0.4; cursor: default; }
 
-.settings-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: none;
-  background: var(--card);
-  color: var(--text);
-  font-size: 1.1rem;
-}
-
 .qr-container {
   display: flex;
   justify-content: center;
