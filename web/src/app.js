@@ -74,24 +74,52 @@ function setStatus(mode) {
   statusEl.textContent = label;
 }
 
+// --- иконки (инлайн SVG, без внешних шрифтов — офлайн-режим не должен зависеть от сети) ---
+const HOME_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>';
+const PLUG_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0V8z"/><path d="M12 17v5"/></svg>';
+
+// Единая заготовка «пусто»: иконка + текст + (опционально) кнопка поиска устройств.
+// Кнопка поиска — один и тот же DOM-узел (объявлен в index.html), а не копия:
+// он просто переносится в нужное место при каждом рендере, поэтому его
+// видимость управляется надёжно, а не теряется после первой перерисовки.
+function buildEmptyState(text, { withDiscover = false } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'empty-state';
+  const icon = document.createElement('div');
+  icon.className = 'empty-state__icon';
+  icon.innerHTML = HOME_ICON;
+  const p = document.createElement('p');
+  p.textContent = text;
+  wrap.append(icon, p);
+  // mDNS-поиск и eWeLink живут на ЛОКАЛЬНОМ сервере — в облаке их не показываем
+  if (withDiscover && mode === 'local') {
+    discoverBtn.hidden = false;
+    wrap.append(discoverBtn);
+  } else {
+    discoverBtn.hidden = true;
+  }
+  return wrap;
+}
+
 function showHint(text, { showDiscover = false } = {}) {
   widgetPatches = {};
   devicesEl.innerHTML = '';
-  const hint = document.createElement('p');
-  hint.className = 'hint';
-  hint.textContent = text;
-  devicesEl.append(hint);
-  // mDNS-поиск и eWeLink живут на ЛОКАЛЬНОМ сервере — в облаке их не показываем
-  discoverBtn.hidden = !showDiscover || mode !== 'local';
+  devicesEl.append(buildEmptyState(text, { withDiscover: showDiscover }));
 }
 
 function buildDeviceCard(device, onToggle) {
   const offline = device.offline === true;
   const noKey = !device.devicekey;
+  const isOn = device.state?.power === 'ON';
   const card = document.createElement('div');
-  card.className = `device-card${offline ? ' device-card--offline' : ''}`;
+  card.className = `device-card${offline ? ' device-card--offline' : ''}${isOn ? ' is-on' : ''}`;
+
+  const icon = document.createElement('div');
+  icon.className = 'device-card__icon';
+  icon.innerHTML = PLUG_ICON;
 
   const info = document.createElement('div');
+  info.className = 'device-card__body';
   const name = document.createElement('div');
   name.className = 'name';
   name.textContent = device.name;
@@ -114,30 +142,26 @@ function buildDeviceCard(device, onToggle) {
   info.append(name, lastSeen);
 
   const toggle = document.createElement('button');
-  const isOn = device.state?.power === 'ON';
   toggle.className = `toggle${isOn ? ' on' : ''}`;
   toggle.setAttribute('aria-label', `Переключить ${device.name}`);
   toggle.disabled = offline;
   toggle.addEventListener('click', () => onToggle(device.id, isOn ? 'OFF' : 'ON'));
 
-  card.append(info, toggle);
+  card.append(icon, info, toggle);
   return card;
 }
 
 function renderDevices(devices, onToggle) {
+  if (!devices?.length) {
+    return buildEmptyState(
+      'Устройства не найдены. Найди их в сети (mDNS) или настрой eWeLink — это даст устройствам имена и ключи управления.',
+      { withDiscover: true },
+    );
+  }
+
   const root = document.createElement('div');
   root.className = 'devices-inner';
   discoverBtn.hidden = true;
-
-  if (!devices?.length) {
-    root.innerHTML = '';
-    const hint = document.createElement('p');
-    hint.className = 'hint';
-    hint.textContent = 'Устройства не найдены. Найди их в сети (mDNS) или настрой eWeLink — это даст устройствам имена и ключи управления.';
-    root.append(hint);
-    discoverBtn.hidden = false;
-    return root;
-  }
 
   // Деление по домам и комнатам: группируем из метаданных облака eWeLink.
   const homes = new Map(); // homeName -> roomName -> [device]
@@ -306,9 +330,11 @@ class CloudConnection {
 let currentConn = null;
 let currentDevices = [];
 
+// Раньше здесь жил ещё виджет «Система» (мини-копия загрузки CPU/RAM прямо
+// на вкладке «Устройства») — убрал: с появлением отдельной вкладки
+// «Загрузка ресурсов» это был дублирующий кусок интерфейса.
 const WIDGETS = {
   devices: { title: 'Устройства', build: renderDevicesWidget },
-  system: { title: 'Система', build: renderSystemWidget },
 };
 const DASH_KEY = 'domovoy.dashboard';
 
@@ -324,58 +350,10 @@ function saveWidgetOrder(order) {
 }
 let widgetOrder = loadWidgetOrder();
 
-// текущее состояние метрик системы (последнее пришедшее по WS)
-let sysStatus = null;
-
 function renderDevicesWidget() {
   return renderDevices(currentDevices, (id, action) => currentConn?.sendCommand(id, action));
 }
 
-function renderSystemWidget() {
-  const host = document.createElement('div');
-  host.className = 'sys-widget';
-  const s = sysStatus;
-  host.append(
-    metricEl('Версия', s?.version || '…', `node ${s?.node || ''}`),
-    metricEl('Аптайм', s ? formatUptime(s.uptime) : '…', 'сервер',
-      () => meterEl(s ? 0 : 0)),
-    metricEl('Память', s?.mem ? `${fmtBytes(s.mem.free)} / ${fmtBytes(s.mem.total)}` : '…',
-      s?.mem ? `${pct(s.mem.used, s.mem.total)}% занято` : ''),
-    metricEl('Нагрузка CPU', s?.load?.length ? s.load.map((v) => v.toFixed(2)).join(' / ') : '…',
-      `${s?.cpus || '?'} ядер`,
-      () => meterEl(s?.load?.[0] != null ? Math.min(100, Math.round((s.load[0] / (s?.cpus || 1)) * 100)) : 0)),
-  );
-  return host;
-}
-
-function metricEl(label, value, sub = '', meter) {
-  const wrap = document.createElement('div');
-  wrap.className = 'sys-metric';
-  const l = document.createElement('div');
-  l.className = 'sys-metric__label';
-  l.textContent = label;
-  const v = document.createElement('div');
-  v.className = 'sys-metric__value';
-  v.textContent = value;
-  wrap.append(l, v);
-  if (sub) {
-    const s = document.createElement('div');
-    s.className = 'sys-metric__sub';
-    s.textContent = sub;
-    wrap.append(s);
-  }
-  if (meter) wrap.append(meter());
-  return wrap;
-}
-function meterEl(percent) {
-  const m = document.createElement('div');
-  m.className = 'meter';
-  const bar = document.createElement('span');
-  bar.style.width = `${Math.max(2, Math.min(100, percent))}%`;
-  m.append(bar);
-  return m;
-}
-function pct(part, total) { return total ? Math.round((part / total) * 100) : 0; }
 function fmtBytes(n) {
   if (n == null) return '…';
   const u = ['Б', 'КБ', 'МБ', 'ГБ'];
@@ -463,6 +441,17 @@ function renderDashboard() {
   devicesEl.innerHTML = '';
   discoverBtn.hidden = true;
   widgetPatches = {};
+
+  // Сейчас виджет всего один («Устройства») — без карточки-обвязки и меню
+  // реорганизации, это просто список устройств. Обвязка (buildWidgetCard)
+  // осталась в коде на будущее, если виджетов снова станет больше одного.
+  if (widgetOrder.length <= 1) {
+    const id = widgetOrder[0] || 'devices';
+    widgetPatches[id] = () => { devicesEl.innerHTML = ''; devicesEl.append(WIDGETS[id].build()); };
+    widgetPatches[id]();
+    return;
+  }
+
   widgetOrder.forEach((id) => {
     const { card, body } = buildWidgetCard(id);
     widgetPatches[id] = () => { body.innerHTML = ''; body.append(WIDGETS[id].build()); };
@@ -471,7 +460,7 @@ function renderDashboard() {
   });
 }
 
-// Перерисовывает «живой» контент (устройства, система) без пересоздания каркаса.
+// Перерисовывает «живой» контент устройств без пересоздания каркаса.
 function rerender() {
   if (Object.keys(widgetPatches).length) {
     widgetOrder.forEach((id) => widgetPatches[id]?.());
@@ -480,11 +469,9 @@ function rerender() {
   renderDashboard();
 }
 function setSystemStatus(status) {
-  sysStatus = status;
-  widgetPatches['system']?.();
-  // обновляем дашборд «Загрузка ресурсов»
+  // Обновляем вкладку «Загрузка ресурсов» и, заодно, версию сервера в шапке,
+  // если она изменилась (например, после передеплоя local-server).
   updateResources(status);
-  // одновременно обновляем версию сервера в шапке, если она вдруг изменилась
   if (status?.version) updateVersionLabel(status.version);
 }
 
@@ -508,8 +495,7 @@ function updateResources(s) {
 
   cpuHist.push(cpuPct); cpuHist.shift();
   ramHist.push(ramUsed); ramHist.shift();
-  renderResourceGraph(cpuCtx, cpuHist, '#e08a3e');
-  renderResourceGraph(ramCtx, ramHist, '#4caf6a');
+  redrawResourceGraphs();
 }
 
 // --- ЛОГИ (панель внизу во всю ширину) ---
@@ -527,9 +513,9 @@ function openLogPanel() {
   logPanelEl.hidden = false;
   applyLogFilter();
 }
-document.getElementById('logs-minmax').addEventListener('click', () => {
+// Кликабельна вся шапка (не только маленькая стрелка) — легче попасть пальцем.
+document.getElementById('logs-toggle-head').addEventListener('click', () => {
   const collapsed = logPanelEl.classList.toggle('logpanel--min');
-  document.getElementById('logs-minmax').textContent = collapsed ? '+' : '−';
   if (!collapsed) applyLogFilter();
 });
 document.getElementById('logs-clear').addEventListener('click', () => {
@@ -572,18 +558,63 @@ function pctColor(p) {
   return p < 60 ? 'var(--on)' : p < 85 ? 'var(--accent)' : '#e07a72';
 }
 
+// Canvas не умеет var(...) в fillStyle/strokeStyle — читаем реальное значение
+// переменной темы, чтобы график не оставался «жёстко оранжевым» в тёмной теме.
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
+// Плавный спарклайн (линия + мягкая заливка градиентом), а не блочные столбики —
+// компактно ложится прямо внутрь карточки метрики.
 function renderResourceGraph(ctx, data, colorStyle) {
-  const w = ctx.canvas.clientWidth || ctx.canvas.width;
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  const h = 60;
-  ctx.canvas.height = h;
-  const gap = 1;
-  const bw = w / CPU_HISTORY;
-  data.forEach((v, i) => {
-    ctx.fillStyle = colorStyle;
-    const bh = (v / 100) * 50;
-    ctx.fillRect(i * bw, h - bh, bw - gap, bh);
-  });
+  const canvas = ctx.canvas;
+  const cssW = canvas.clientWidth || 200;
+  const cssH = canvas.clientHeight || 40;
+  const dpr = window.devicePixelRatio || 1;
+  const pxW = Math.round(cssW * dpr);
+  const pxH = Math.round(cssH * dpr);
+  if (canvas.width !== pxW || canvas.height !== pxH) {
+    canvas.width = pxW;
+    canvas.height = pxH;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  if (cssW <= 0 || cssH <= 0 || data.length < 2) return;
+
+  const pad = 2;
+  const stepX = (cssW - pad * 2) / (data.length - 1);
+  const points = data.map((v, i) => [
+    pad + i * stepX,
+    pad + (1 - Math.min(1, Math.max(0, v / 100))) * (cssH - pad * 2),
+  ]);
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, cssH);
+  gradient.addColorStop(0, colorStyle);
+  gradient.addColorStop(1, 'transparent');
+
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], cssH);
+  points.forEach(([x, y]) => ctx.lineTo(x, y));
+  ctx.lineTo(points[points.length - 1][0], cssH);
+  ctx.closePath();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.beginPath();
+  points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+  ctx.strokeStyle = colorStyle;
+  ctx.lineWidth = 1.75;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
+function redrawResourceGraphs() {
+  renderResourceGraph(cpuCtx, cpuHist, cssVar('--accent', '#c96f2e'));
+  renderResourceGraph(ramCtx, ramHist, cssVar('--on', '#2f8f56'));
 }
 
 // --- Вкладки: Устройства / Загрузка ресурсов ---
@@ -594,10 +625,7 @@ function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === name));
   document.getElementById('panel-devices').hidden = name !== 'devices';
   document.getElementById('panel-resources').hidden = name !== 'resources';
-  if (name === 'resources') {
-    renderResourceGraph(cpuCtx, cpuHist, '#e08a3e');
-    renderResourceGraph(ramCtx, ramHist, '#4caf6a');
-  }
+  if (name === 'resources') redrawResourceGraphs();
 }
 document.querySelectorAll('.tab-btn').forEach((b) => {
   b.addEventListener('click', () => switchTab(b.dataset.tab));

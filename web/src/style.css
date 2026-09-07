@@ -1,33 +1,69 @@
-/* Светлая тема — по умолчанию */
+/* ============================================================
+   Домовой — дизайн-система клиента.
+   Тёплая графитово-янтарная палитра, светлая тема по умолчанию,
+   тёмная — по системной настройке устройства.
+   ============================================================ */
+
 :root {
   color-scheme: light dark;
   --bg: #f4f1ec;
+  --bg-elev: #ffffff;
   --card: #ffffff;
+  --card-hover: #fbf9f6;
   --accent: #c96f2e;
+  --accent-strong: #a85922;
+  --accent-ink: #2a1608;
   --text: #211d1a;
   --muted: #857c72;
+  --faint: #a89f95;
   --on: #2f8f56;
-  --off: #e3ddd4;
+  --on-soft: rgba(47, 143, 86, 0.14);
+  --accent-soft: rgba(201, 111, 46, 0.16);
+  --warn: #c9862f;
+  --danger: #c0503f;
+  --off: #e7e1d8;
+  --border: rgba(33, 29, 26, 0.08);
+  --shadow-sm: 0 1px 2px rgba(40, 30, 20, 0.06);
+  --shadow-md: 0 6px 20px rgba(40, 30, 20, 0.08);
+  --shadow-lg: 0 16px 40px rgba(40, 30, 20, 0.16);
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Заставка (лого + название) — всегда графитовая, независимо от темы */
   --splash-bg: #211e1c;
   --splash-text: #f2ede8;
 }
 
-/* Тёмная тема — по системной настройке устройства (например, ночью) */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #151312;
-    --card: #201d1b;
-    --accent: #e08a3e;
+    --bg: #14120f;
+    --bg-elev: #1c1815;
+    --card: #201c19;
+    --card-hover: #262119;
+    --accent: #e2953f;
+    --accent-strong: #f0a94f;
+    --accent-ink: #1a1512;
     --text: #f2ede8;
-    --muted: #948b83;
-    --on: #4caf6a;
-    --off: #3a3532;
+    --muted: #a49a8e;
+    --faint: #6f665c;
+    --on: #58b47b;
+    --on-soft: rgba(88, 180, 123, 0.22);
+    --accent-soft: rgba(226, 149, 63, 0.24);
+    --warn: #e2953f;
+    --danger: #e0776a;
+    --off: #322b25;
+    --border: rgba(242, 237, 232, 0.08);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.5);
   }
 }
 
 * { box-sizing: border-box; }
+
+html { -webkit-tap-highlight-color: transparent; }
 
 body {
   margin: 0;
@@ -35,9 +71,13 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  padding-bottom: 16rem;
+  padding-bottom: 3.25rem; /* место под свёрнутую ручку панели логов */
+  -webkit-font-smoothing: antialiased;
 }
 
+button, input, select { font-family: inherit; }
+
+/* ---------- Заставка ---------- */
 .splash {
   position: fixed;
   inset: 0;
@@ -47,21 +87,17 @@ body {
   align-items: center;
   justify-content: center;
   gap: 1.25rem;
-  /* Фиксированный графитовый цвет — заставка не зависит от темы устройства */
   background: var(--splash-bg);
   opacity: 1;
-  transition: opacity 0.5s ease;
+  transition: opacity 0.5s var(--ease);
 }
-.splash.splash--hide {
-  opacity: 0;
-  pointer-events: none;
-}
+.splash.splash--hide { opacity: 0; pointer-events: none; }
 .splash__logo {
   width: 112px;
   height: 112px;
   border-radius: 28px;
   object-fit: cover;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 .splash__name {
   font-size: 1.6rem;
@@ -70,391 +106,325 @@ body {
   color: var(--splash-text);
 }
 
+/* ---------- Шапка ---------- */
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 1.25rem 0.5rem;
+  flex-wrap: wrap;
+  row-gap: 0.6rem;
+  gap: 0.75rem;
+  padding: 1.25rem 1.25rem 0.75rem;
 }
 
 .topbar h1 {
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   margin: 0;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
-.status {
-  font-size: 0.8rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid var(--muted);
-  color: var(--muted);
-}
-.status--local { border-color: var(--on); color: var(--on); }
-.status--cloud { border-color: var(--accent); color: var(--accent); }
-.status--offline { border-color: #b6473f; color: #e07a72; }
-
-.devices {
-  padding: 1rem 1.25rem;
-  display: grid;
-  gap: 0.75rem;
-}
-
-.home-section {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.home-title {
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin: 0.75rem 0 0;
-  letter-spacing: 0.02em;
-  color: var(--text);
-}
-
-.room-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin: 0.75rem 0 -0.35rem 0.25rem;
-  color: var(--muted);
-}
-
-.hint { color: var(--muted); }
-
-.device-card {
+.topbar__right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  background: var(--card);
-  border-radius: 16px;
-  padding: 1rem 1.1rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-left: auto;
 }
-
-.device-card .name { font-size: 1rem; }
-.device-card .device-ip { font-size: 0.75rem; color: var(--muted); margin-left: 0.5rem; font-weight: 400; }
-.device-card .last-seen { display: block; font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
-
-.device-card--offline {
-  opacity: 0.55;
-}
-.device-card--offline .name {
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 400;
-}
-.device-card--offline .last-seen {
-  font-size: 0.7rem;
-  color: var(--muted);
-}
-.device-card--offline .toggle {
-  background: var(--off);
-  cursor: default;
-}
-.device-card--offline .toggle::after {
-  background: var(--muted);
-}
-
-.toggle {
-  width: 56px;
-  height: 32px;
-  border-radius: 999px;
-  border: none;
-  background: var(--off);
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.toggle::after {
-  content: "";
-  position: absolute;
-  top: 3px; left: 3px;
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  background: var(--text);
-  transition: transform 0.2s ease;
-}
-.toggle.on { background: var(--on); }
-.toggle.on::after { transform: translateX(24px); }
 
 .topbar__actions {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-left: auto;
-  margin-right: 0.6rem;
 }
-.top-btn {
-  border: none;
+
+.icon-btn {
+  border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--card);
-  color: var(--text);
-  font-size: 0.9rem;
-  width: 40px;
-  height: 40px;
+  color: var(--muted);
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.1s var(--ease), background 0.15s var(--ease);
 }
-.top-btn.admin-btn {
-  width: auto;
-  padding: 0 0.9rem;
-  font-size: 0.7rem;
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn:hover { color: var(--text); border-color: var(--faint); }
+.icon-btn:active { transform: scale(0.94); }
+.icon-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+.icon-btn.icon-btn--accent { color: var(--accent); border-color: var(--accent-soft); }
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-}
-.top-btn:disabled { opacity: 0.4; cursor: default; }
-
-.qr-container {
-  display: flex;
-  justify-content: center;
-  padding: 1rem 0;
-}
-.qr-container svg {
-  width: 220px;
-  height: 220px;
-  background: #fff;
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.version {
-  font-size: 0.65rem;
-  color: var(--muted);
-  opacity: 0.7;
-  pointer-events: none;
-}
-.tabs .version {
-  margin-left: auto;
-  align-self: center;
-  padding-right: 0.25rem;
-}
-
-dialog {
+  padding: 0.3rem 0.7rem 0.3rem 0.55rem;
+  border-radius: 999px;
   background: var(--card);
-  color: var(--text);
-  border: none;
-  border-radius: 16px;
-  padding: 1.25rem;
-  max-width: 320px;
-  width: 90%;
-}
-dialog label { display: block; margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--muted); }
-dialog input, dialog select {
-  width: 100%;
-  margin-top: 0.25rem;
-  padding: 0.5rem;
-  border-radius: 8px;
-  border: 1px solid var(--off);
-  background: var(--bg);
-  color: var(--text);
-  font-family: inherit;
-}
-dialog menu { display: flex; justify-content: flex-end; gap: 0.5rem; }
-dialog button { padding: 0.5rem 1rem; border-radius: 8px; border: none; background: var(--off); color: var(--text); }
-#settings-save { background: var(--accent); color: #1a1512; }
-dialog input[readonly] {
-  background: var(--off);
   color: var(--muted);
-  cursor: not-allowed;
-  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  white-space: nowrap;
 }
-.action-btn {
-  padding: 0.6rem 1rem;
-  border-radius: 12px;
-  border: none;
-  background: var(--accent);
-  color: #1a1512;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
+.status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
 }
-.admin-configured {
-  background: var(--off);
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
-}
-.admin-configured__title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--on);
-  margin-bottom: 0.25rem;
-}
+.status--local { color: var(--on); }
+.status--cloud { color: var(--accent); }
+.status--offline { color: var(--danger); }
 
-.discovery-list { margin: 0.5rem 0 0; padding: 0; list-style: none; }
-.discovery-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  align-items: baseline;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--off);
-  font-size: 0.85rem;
-}
-.discovery-list .discovery-ip { color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.75rem; }
-.discovery-list .with-key { color: var(--on); }
-.discovery-list .no-key { color: var(--muted); font-size: 0.7rem; }
-
-/* --- Вкладки (Устройства / Загрузка ресурсов) --- */
+/* ---------- Вкладки (сегмент-контрол) ---------- */
 .tabs {
   display: flex;
-  gap: 0.5rem;
-  padding: 0 1.25rem 0.25rem;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0 1.25rem 0.75rem;
+  padding: 0.25rem;
+  background: var(--off);
+  border-radius: 999px;
 }
 .tab-btn {
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 1rem;
   border-radius: 999px;
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   cursor: pointer;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 .tab-btn.is-active {
   background: var(--card);
   color: var(--text);
-  border-color: var(--off);
+  box-shadow: var(--shadow-sm);
+}
+.tabs .version {
+  margin-left: auto;
+  margin-right: 0.5rem;
 }
 
-/* --- Панель «Загрузка ресурсов» --- */
-.panel { padding-bottom: 1rem; }
-.resources {
-  padding: 0.5rem 1.25rem;
+.panel { padding-bottom: 1.5rem; }
+
+/* ---------- Устройства ---------- */
+.devices {
+  padding: 0.25rem 1.25rem 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.home-section { display: grid; gap: 0.6rem; }
+
+.home-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+  margin: 0.6rem 0 -0.1rem;
+  letter-spacing: 0.01em;
+}
+
+.room-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0.7rem 0 -0.3rem 0.3rem;
+  color: var(--faint);
+}
+
+.hint { color: var(--muted); line-height: 1.5; }
+
+.device-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  transition: box-shadow 0.2s var(--ease), transform 0.15s var(--ease);
+}
+.device-card:hover { box-shadow: var(--shadow-md); }
+
+.device-card__icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--off);
+  color: var(--faint);
+  transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+.device-card__icon svg { width: 20px; height: 20px; }
+.device-card.is-on .device-card__icon {
+  background: var(--on-soft);
+  color: var(--on);
+}
+
+.device-card__body { flex: 1; min-width: 0; }
+.device-card .name {
+  font-size: 0.98rem;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.device-card .device-ip { font-size: 0.7rem; color: var(--faint); font-weight: 400; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.device-card .last-seen { display: block; font-size: 0.76rem; color: var(--muted); margin-top: 0.1rem; }
+
+.device-card--offline { opacity: 0.6; }
+.device-card--offline .name { color: var(--muted); font-size: 0.9rem; font-weight: 500; }
+.device-card--offline .last-seen { font-size: 0.72rem; }
+.device-card--offline .toggle { background: var(--off); cursor: default; }
+.device-card--offline .toggle::after { background: var(--faint); }
+
+.toggle {
+  flex: none;
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: var(--off);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s var(--ease);
+}
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  transition: transform 0.2s var(--ease);
+}
+.toggle.on { background: var(--on); }
+.toggle.on::after { transform: translateX(22px); }
+
+.empty-state {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+  padding: 2.75rem 1.5rem;
+  color: var(--muted);
+}
+.empty-state__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--off);
+  color: var(--faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+.empty-state__icon svg { width: 26px; height: 26px; }
+.empty-state p { margin: 0; max-width: 320px; line-height: 1.5; }
+
+.action-btn {
+  padding: 0.65rem 1.2rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: filter 0.15s var(--ease), transform 0.1s var(--ease);
+}
+.action-btn svg { width: 17px; height: 17px; }
+.action-btn:hover { filter: brightness(1.06); }
+.action-btn:active { transform: scale(0.97); }
+
+/* ---------- Загрузка ресурсов ---------- */
+.resources {
+  padding: 0.25rem 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 .res-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0.75rem;
 }
 .res-card {
   background: var(--card);
-  border-radius: 16px;
-  padding: 1rem 1.1rem;
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.2rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 .res-card__title {
   font-size: 0.7rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
+  letter-spacing: 0.07em;
+  color: var(--faint);
 }
 .res-card__big {
-  font-size: 1.6rem;
+  font-size: 1.9rem;
   font-weight: 700;
-  margin: 0.25rem 0;
+  margin: 0.1rem 0 0.35rem;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
 }
-.res-card__sub { font-size: 0.75rem; color: var(--muted); }
-.meter--big { height: 10px; margin-top: 0.5rem; }
-.res-graphs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 0.75rem;
+.res-card__sub {
+  font-size: 0.76rem;
+  color: var(--muted);
+  min-height: 1.1em;
 }
-.res-graphs canvas {
-  background: var(--card);
-  border-radius: 16px;
-  padding: 0.5rem;
+.res-card__spark {
   width: 100%;
+  height: 40px;
+  margin-top: 0.6rem;
+  display: block;
 }
+.meter { height: 6px; border-radius: 999px; background: var(--off); overflow: hidden; margin-top: 0.55rem; }
+.meter > span { display: block; height: 100%; border-radius: 999px; transition: width 0.4s var(--ease), background 0.4s var(--ease); }
 
-/* --- Панель логов (во всю ширину, внизу) --- */
-.logpanel {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
-  background: #141110;
-  border-top: 1px solid var(--off);
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 -8px 30px rgba(0,0,0,0.3);
-}
-.logpanel__head {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.35rem 0.75rem;
-  background: #1c1a18;
-}
-.logpanel__title {
-  color: #d8d2ca;
-  font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.logpanel__filter { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.72rem; }
-.logpanel__filter input[type="text"] {
-  width: 150px;
-  padding: 0.2rem 0.4rem;
-  border-radius: 6px;
-  border: 1px solid var(--off);
-  background: #141110;
-  color: #e0dbd3;
-  font-size: 0.72rem;
-}
-.logpanel__live { display: flex; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.72rem; }
-.logpanel__live input { width: auto; }
-.logpanel__clear {
-  margin-left: auto;
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
-  border: none;
-  background: #3a3532;
-  color: #d8d2ca;
-  font-size: 0.72rem;
-  cursor: pointer;
-}
-.logpanel__output {
-  height: 140px;
-  overflow: auto;
-  color: #d8d2ca;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.7rem;
-  line-height: 1.45;
-  padding: 0.5rem 0.75rem;
-  margin: 0;
-  white-space: pre;
-}
-.logpanel.logpanel--min .logpanel__output { display: none; }
-
-/* --- Виджет «Система» (дашборд) --- */
-.sys-widget {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.75rem;
-  background: var(--card);
-  border-radius: 16px;
-  padding: 1rem 1.1rem;
-}
-.sys-metric { display: flex; flex-direction: column; gap: 0.2rem; }
-.sys-metric__label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.sys-metric__value { font-size: 1.05rem; font-weight: 600; }
-.sys-metric__sub { font-size: 0.72rem; color: var(--muted); }
-.meter { height: 6px; border-radius: 999px; background: var(--off); overflow: hidden; margin-top: 0.3rem; }
-.meter > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.3s ease; }
-
-/* --- Виджет-дашборд: карточки-виджеты --- */
+/* ---------- Виджеты-карточки (задел на будущее: сейчас виджет один — «Устройства»,
+   обвязка не рендерится, но стили остаются рабочими, если виджетов станет больше) ---------- */
 .dash-widget {
   background: var(--card);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   padding: 0.9rem 1.1rem 0.6rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
 }
 .dash-widget__title {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--faint);
   margin-bottom: 0.5rem;
 }
 .dash-widget__menu {
@@ -464,12 +434,14 @@ dialog input[readonly] {
   font-size: 1.1rem;
   cursor: pointer;
   padding: 0 0.2rem;
+  border-radius: var(--radius-sm);
 }
+.dash-widget__menu:hover { background: var(--off); }
 .dash-menu {
   background: var(--card);
-  border: none;
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
   padding: 0.35rem;
   max-width: 220px;
 }
@@ -481,12 +453,199 @@ dialog input[readonly] {
   border: none;
   color: var(--text);
   padding: 0.45rem 0.6rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.85rem;
 }
 .dash-menu button:hover { background: var(--off); }
 .dash-menu button:disabled { opacity: 0.4; cursor: default; }
 .dash-widget .home-section { gap: 0.5rem; }
-.dash-widget .device-card { padding: 0.7rem 0.9rem; }
-.dash-widget .sys-widget { background: none; padding: 0; }
+.dash-widget .device-card { padding: 0.7rem 0.9rem; box-shadow: none; }
+
+/* ---------- Панель логов (свёрнутая ручка внизу / выезжающая шторка) ---------- */
+.logpanel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  overflow: hidden;
+}
+.logpanel__head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+.logpanel__title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.logpanel__title svg { width: 15px; height: 15px; color: var(--muted); }
+.logpanel__chevron {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s var(--ease), background 0.15s var(--ease);
+}
+.logpanel__chevron svg { width: 16px; height: 16px; }
+.logpanel__head:hover .logpanel__chevron { background: var(--off); }
+.logpanel.logpanel--min .logpanel__chevron { transform: rotate(180deg); }
+
+.logpanel__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.9rem 0.7rem;
+  flex-wrap: wrap;
+}
+.logpanel__filter {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  flex: 1;
+  min-width: 140px;
+}
+.logpanel__filter input[type="text"] {
+  flex: 1;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.78rem;
+}
+.logpanel__live { display: flex; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+.logpanel__live input { width: auto; accent-color: var(--accent); }
+.logpanel__clear {
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.logpanel__clear:hover { color: var(--text); }
+.logpanel__output {
+  height: 220px;
+  overflow: auto;
+  color: #d8d2ca;
+  background: #141110;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  padding: 0.65rem 0.9rem;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.logpanel.logpanel--min .logpanel__controls,
+.logpanel.logpanel--min .logpanel__output { display: none; }
+
+/* ---------- Диалоги ---------- */
+dialog {
+  background: var(--card);
+  color: var(--text);
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 1.4rem;
+  max-width: 340px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+}
+dialog::backdrop { background: rgba(20, 16, 12, 0.45); backdrop-filter: blur(2px); }
+dialog h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.9rem;
+  font-weight: 700;
+}
+dialog label { display: block; margin-bottom: 0.85rem; font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+dialog input, dialog select {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+dialog input:focus, dialog select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+dialog input[readonly] {
+  background: var(--off);
+  color: var(--muted);
+  cursor: not-allowed;
+  font-size: 0.72rem;
+}
+dialog menu { display: flex; justify-content: flex-end; gap: 0.5rem; margin: 0.9rem 0 0; padding: 0; }
+dialog button {
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--off);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: filter 0.15s var(--ease);
+}
+dialog button:hover { filter: brightness(0.97); }
+@media (prefers-color-scheme: dark) { dialog button:hover { filter: brightness(1.15); } }
+#settings-save { background: var(--accent); color: var(--accent-ink); }
+
+.qr-container { display: flex; justify-content: center; padding: 0.75rem 0 1.1rem; }
+.qr-container svg { width: 220px; height: 220px; background: #fff; border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow-sm); }
+
+.admin-configured {
+  background: var(--on-soft);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.85rem;
+}
+.admin-configured__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--on);
+  margin-bottom: 0.3rem;
+}
+
+/* ---------- Версия ---------- */
+.version {
+  font-size: 0.68rem;
+  color: var(--faint);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}

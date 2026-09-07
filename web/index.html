@@ -20,24 +20,45 @@
 
   <header class="topbar">
     <h1>Домовой</h1>
-    <div class="topbar__actions">
-      <button id="share-btn" class="top-btn" title="Показать QR для другого устройства">⇄</button>
-      <button id="admin-btn" class="top-btn admin-btn" title="Администрирование: eWeLink и устройства">АДМИНИСТРАТОР</button>
-      <button id="settings-btn" class="top-btn" title="Настройки подключения">⚙</button>
+    <div class="topbar__right">
+      <span id="status" class="status status--offline">…</span>
+      <div class="topbar__actions">
+        <button id="share-btn" class="icon-btn" title="Показать QR для другого устройства" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.2" /><rect x="14" y="3" width="7" height="7" rx="1.2" /><rect x="3" y="14" width="7" height="7" rx="1.2" />
+            <rect x="14.5" y="14.5" width="2.5" height="2.5" /><rect x="18" y="14.5" width="2.5" height="2.5" /><rect x="14.5" y="18" width="2.5" height="2.5" /><rect x="18" y="18" width="2.5" height="2.5" />
+          </svg>
+        </button>
+        <button id="admin-btn" class="icon-btn" title="Администрирование: eWeLink и устройства" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.8 2.8-2-2z" />
+          </svg>
+        </button>
+        <button id="settings-btn" class="icon-btn" title="Настройки подключения" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </div>
     </div>
-    <span id="status" class="status status--offline">…</span>
   </header>
 
   <nav class="tabs" id="tabs">
     <button class="tab-btn is-active" data-tab="devices">Устройства</button>
     <button class="tab-btn" data-tab="resources">Загрузка ресурсов</button>
-    <span id="version" class="version tabs-version"></span>
+    <span id="version" class="version"></span>
   </nav>
 
   <section id="panel-devices" class="panel">
     <main id="devices" class="devices">
       <p id="devices-hint" class="hint">Подключаюсь…</p>
-      <button id="discover-btn" class="action-btn" hidden>Найти устройства в сети</button>
+      <button id="discover-btn" class="action-btn" hidden type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 8.5a15 15 0 0 1 20 0" /><path d="M5 12a10 10 0 0 1 14 0" /><path d="M8.5 15.5a5 5 0 0 1 7 0" /><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+        </svg>
+        Найти устройства в сети
+      </button>
     </main>
   </section>
 
@@ -47,14 +68,16 @@
         <div class="res-card">
           <div class="res-card__title">CPU</div>
           <div class="res-card__big" id="res-cpu-value">—</div>
-          <div class="meter meter--big"><span id="res-cpu-bar" style="width:0%"></span></div>
+          <div class="meter"><span id="res-cpu-bar" style="width:0%"></span></div>
           <div class="res-card__sub" id="res-cpu-sub">—</div>
+          <canvas id="res-cpu-chart" class="res-card__spark"></canvas>
         </div>
         <div class="res-card">
           <div class="res-card__title">Память (RAM)</div>
           <div class="res-card__big" id="res-ram-value">—</div>
-          <div class="meter meter--big"><span id="res-ram-bar" style="width:0%"></span></div>
+          <div class="meter"><span id="res-ram-bar" style="width:0%"></span></div>
           <div class="res-card__sub" id="res-ram-sub">—</div>
+          <canvas id="res-ram-chart" class="res-card__spark"></canvas>
         </div>
         <div class="res-card">
           <div class="res-card__title">Аптайм</div>
@@ -62,24 +85,27 @@
           <div class="res-card__sub" id="res-uptime-sub">—</div>
         </div>
       </div>
-      <div class="res-graphs">
-        <canvas id="res-cpu-chart" height="120"></canvas>
-        <canvas id="res-ram-chart" height="120"></canvas>
-      </div>
     </div>
   </section>
 
-  <section class="logpanel" id="logpanel" hidden>
-    <div class="logpanel__head">
-      <span class="logpanel__title">Логи сервера</span>
+  <section class="logpanel logpanel--min" id="logpanel" hidden>
+    <div class="logpanel__head" id="logs-toggle-head">
+      <span class="logpanel__title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
+        Логи сервера
+      </span>
+      <button id="logs-minmax" class="logpanel__chevron" aria-label="Свернуть/развернуть логи" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+      </button>
+    </div>
+    <div class="logpanel__controls">
       <label class="logpanel__filter">Поиск
         <input type="text" id="logs-filter" placeholder="фильтровать…" />
       </label>
       <label class="logpanel__live">
         <input type="checkbox" id="logs-live" checked /> автопрокрутка
       </label>
-      <button id="logs-clear" class="logpanel__clear">Очистить</button>
-      <button id="logs-minmax" class="logpanel__clear">−</button>
+      <button id="logs-clear" class="logpanel__clear" type="button">Очистить</button>
     </div>
     <pre id="logs-output" class="logpanel__output"></pre>
   </section>
@@ -111,7 +137,7 @@
     <p class="hint">Отсканируй камерой телефона — откроется ссылка, и токен подставится сам, без ручного ввода.</p>
     <div id="qr-container" class="qr-container"></div>
     <menu>
-      <button id="share-close" value="default">Закрыть</button>
+      <button id="share-close" value="default" type="button">Закрыть</button>
     </menu>
   </dialog>
 
@@ -147,7 +173,7 @@
     </menu>
     <div id="admin-result" class="hint"></div>
     <menu>
-      <button id="admin-close" value="default">Закрыть</button>
+      <button id="admin-close" value="default" type="button">Закрыть</button>
     </menu>
   </dialog>
 
