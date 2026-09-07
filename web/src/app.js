@@ -482,22 +482,68 @@ function rerender() {
 function setSystemStatus(status) {
   sysStatus = status;
   widgetPatches['system']?.();
+  // обновляем дашборд «Загрузка ресурсов»
+  updateResources(status);
   // одновременно обновляем версию сервера в шапке, если она вдруг изменилась
   if (status?.version) updateVersionLabel(status.version);
 }
 
-// --- ЛОГИ ---
+function updateResources(s) {
+  if (!s) return;
+  const cpuPct = s.load?.[0] != null ? Math.min(100, Math.round((s.load[0] / (s.cpus || 1)) * 100)) : 0;
+  const ramUsed = s.mem?.used != null && s.mem?.total ? Math.round((s.mem.used / s.mem.total) * 100) : 0;
+
+  resCpuValue.textContent = `${cpuPct}%`;
+  resCpuBar.style.width = `${cpuPct}%`;
+  resCpuBar.style.background = pctColor(cpuPct);
+  resCpuSub.textContent = s.load?.length ? `загрузка: ${s.load.map((v) => v.toFixed(2)).join(' / ')} · ${s.cpus} ядер` : '';
+
+  resRamValue.textContent = `${ramUsed}%`;
+  resRamBar.style.width = `${ramUsed}%`;
+  resRamBar.style.background = pctColor(ramUsed);
+  resRamSub.textContent = s.mem ? `${fmtBytes(s.mem.used)} / ${fmtBytes(s.mem.total)}` : '';
+
+  resUptimeValue.textContent = s.uptime != null ? formatUptime(s.uptime) : '—';
+  resUptimeSub.textContent = 'с момента запуска сервера';
+
+  cpuHist.push(cpuPct); cpuHist.shift();
+  ramHist.push(ramUsed); ramHist.shift();
+  renderResourceGraph(cpuCtx, cpuHist, '#e08a3e');
+  renderResourceGraph(ramCtx, ramHist, '#4caf6a');
+}
+
+// --- ЛОГИ (панель внизу во всю ширину) ---
+const logPanelEl = document.getElementById('logpanel');
 const logsOutputEl = document.getElementById('logs-output');
 const logsFilterEl = document.getElementById('logs-filter');
 const logsLiveEl = document.getElementById('logs-live');
 let allLogLines = [];
-let logsVisible = false;
+let logPanelOpen = false;
+
+// Лог включён на локальном сервере всегда (там и живут логи). Панель показываем
+// при старте свёрнутой, но подключаем поток независимо от табов.
+function openLogPanel() {
+  logPanelOpen = true;
+  logPanelEl.hidden = false;
+  applyLogFilter();
+}
+document.getElementById('logs-minmax').addEventListener('click', () => {
+  const collapsed = logPanelEl.classList.toggle('logpanel--min');
+  document.getElementById('logs-minmax').textContent = collapsed ? '+' : '−';
+  if (!collapsed) applyLogFilter();
+});
+document.getElementById('logs-clear').addEventListener('click', () => {
+  allLogLines = [];
+  logsOutputEl.textContent = '';
+});
+logsFilterEl.addEventListener('input', applyLogFilter);
+logsFilterEl.addEventListener('focus', () => { logsLiveEl.checked = false; });
 
 function handleLogLines(lines, reset) {
   if (reset) allLogLines = [];
   allLogLines.push(...lines);
   if (allLogLines.length > 2000) allLogLines = allLogLines.slice(-2000);
-  if (logsVisible) applyLogFilter();
+  if (logPanelOpen) applyLogFilter();
 }
 
 function applyLogFilter() {
@@ -507,24 +553,51 @@ function applyLogFilter() {
   if (logsLiveEl.checked) logsOutputEl.scrollTop = logsOutputEl.scrollHeight;
 }
 
-document.getElementById('logs-btn').addEventListener('click', () => {
-  const dialog = document.getElementById('logs-dialog');
-  logsVisible = true;
-  applyLogFilter();
-  dialog.showModal();
-});
+// --- Загрузка ресурсов (CPU/RAM) + графики ---
+const resCpuValue = document.getElementById('res-cpu-value');
+const resCpuBar = document.getElementById('res-cpu-bar');
+const resCpuSub = document.getElementById('res-cpu-sub');
+const resRamValue = document.getElementById('res-ram-value');
+const resRamBar = document.getElementById('res-ram-bar');
+const resRamSub = document.getElementById('res-ram-sub');
+const resUptimeValue = document.getElementById('res-uptime-value');
+const resUptimeSub = document.getElementById('res-uptime-sub');
+const cpuCtx = document.getElementById('res-cpu-chart').getContext('2d');
+const ramCtx = document.getElementById('res-ram-chart').getContext('2d');
+const CPU_HISTORY = 60;
+const cpuHist = new Array(CPU_HISTORY).fill(0);
+const ramHist = new Array(CPU_HISTORY).fill(0);
 
-document.getElementById('logs-close').addEventListener('click', () => {
-  logsVisible = false;
-  document.getElementById('logs-dialog').close();
-});
-document.getElementById('logs-clear').addEventListener('click', () => {
-  allLogLines = [];
-  logsOutputEl.textContent = '';
-});
-logsFilterEl.addEventListener('input', applyLogFilter);
-logsFilterEl.addEventListener('focus', () => { logsLiveEl.checked = false; });
+function pctColor(p) {
+  return p < 60 ? 'var(--on)' : p < 85 ? 'var(--accent)' : '#e07a72';
+}
 
+function renderResourceGraph(ctx, data, colorStyle) {
+  const w = ctx.canvas.clientWidth || ctx.canvas.width;
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const h = 60;
+  ctx.canvas.height = h;
+  const gap = 1;
+  const bw = w / CPU_HISTORY;
+  data.forEach((v, i) => {
+    ctx.fillStyle = colorStyle;
+    const bh = (v / 100) * 50;
+    ctx.fillRect(i * bw, h - bh, bw - gap, bh);
+  });
+}
+
+// --- Вкладки: Устройства / Загрузка ресурсов ---
+function showTabs() { document.getElementById('tabs').hidden = false; }
+function hideTabs() { document.getElementById('tabs').hidden = true; switchTab('devices'); }
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === name));
+  document.getElementById('panel-devices').hidden = name !== 'devices';
+  document.getElementById('panel-resources').hidden = name !== 'resources';
+}
+document.querySelectorAll('.tab-btn').forEach((b) => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
 
 async function connect() {
   currentConn?.close();
@@ -536,7 +609,8 @@ async function connect() {
     mode = 'local';
     updateVersionLabel(localVer);
     document.getElementById('admin-btn').hidden = false;
-    document.getElementById('logs-btn').hidden = false;
+    showTabs();
+    openLogPanel();
     currentConn = new LocalConnection(settings.localUrl, settings.token);
     currentConn.onMessage((msg) => {
       if (msg.type === 'state') { currentDevices = msg.devices; rerender(); }
@@ -568,7 +642,8 @@ async function connect() {
   // В облаке eWeLink/mDNS настраивается ТОЛЬКО на локальном сервере —
   // тут админка не нужна, показываем лишь то, что шлёт локальный сервер.
   document.getElementById('admin-btn').hidden = true;
-  document.getElementById('logs-btn').hidden = true;
+  hideTabs();
+  logPanelEl.hidden = true;
   currentConn.onUpdate(
     (devices) => { currentDevices = devices; rerender(); },
     (online) => setStatus(online ? 'cloud' : 'offline'),

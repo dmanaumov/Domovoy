@@ -35,7 +35,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  padding-bottom: 4rem;
+  padding-bottom: 16rem;
 }
 
 .splash {
@@ -177,10 +177,36 @@ body {
 .toggle.on { background: var(--on); }
 .toggle.on::after { transform: translateX(24px); }
 
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  margin-right: 0.6rem;
+}
+.top-btn {
+  border: none;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.top-btn.admin-btn {
+  width: auto;
+  padding: 0 0.9rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.top-btn:disabled { opacity: 0.4; cursor: default; }
+
 .settings-btn {
-  position: fixed;
-  bottom: 1rem;
-  right: 1rem;
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -188,10 +214,6 @@ body {
   background: var(--card);
   color: var(--text);
   font-size: 1.1rem;
-}
-.share-btn {
-  right: auto;
-  left: 1rem;
 }
 
 .qr-container {
@@ -208,13 +230,15 @@ body {
 }
 
 .version {
-  position: fixed;
-  bottom: 0.3rem;
-  right: 1rem;
   font-size: 0.65rem;
   color: var(--muted);
   opacity: 0.7;
   pointer-events: none;
+}
+.tabs .version {
+  margin-left: auto;
+  align-self: center;
+  padding-right: 0.25rem;
 }
 
 dialog {
@@ -245,17 +269,6 @@ dialog input[readonly] {
   color: var(--muted);
   cursor: not-allowed;
   font-size: 0.72rem;
-}
-.admin-btn {
-  width: auto;
-  border-radius: 999px;
-  padding: 0 0.9rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  bottom: 1rem;
-  left: 4.6rem;
-  height: 36px;
 }
 .action-btn {
   padding: 0.6rem 1rem;
@@ -294,49 +307,132 @@ dialog input[readonly] {
 .discovery-list .with-key { color: var(--on); }
 .discovery-list .no-key { color: var(--muted); font-size: 0.7rem; }
 
-/* --- Кнопка «Логи» --- */
-.logs-btn {
-  bottom: 4.9rem;
-  right: 1rem;
-  width: auto;
+/* --- Вкладки (Устройства / Загрузка ресурсов) --- */
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1.25rem 0.25rem;
+}
+.tab-btn {
+  padding: 0.5rem 1rem;
   border-radius: 999px;
-  padding: 0 0.9rem;
-  font-size: 0.7rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  height: 36px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.tab-btn.is-active {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--off);
 }
 
-/* --- Диалог логов --- */
-.logs-dialog {
-  max-width: 760px;
-  width: 95vw;
-  max-height: 85vh;
+/* --- Панель «Загрузка ресурсов» --- */
+.panel { padding-bottom: 1rem; }
+.resources {
+  padding: 0.5rem 1.25rem;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  gap: 1rem;
 }
-.logs-dialog h2 { margin: 0 0 0.75rem; }
-.logs-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; flex-wrap: wrap; }
-.logs-tools { display: flex; gap: 1rem; align-items: flex-start; }
-.logs-filter { font-size: 0.8rem; color: var(--muted); margin: 0; white-space: nowrap; }
-.logs-filter input[type="text"] { width: 160px; margin-top: 0.15rem; }
-.logs-filter input[type="checkbox"] { width: auto; margin-right: 0.3rem; vertical-align: middle; }
-.logs-output {
-  flex: 1;
-  min-height: 40vh;
-  overflow: auto;
+.res-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+.res-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+}
+.res-card__title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.res-card__big {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0.25rem 0;
+}
+.res-card__sub { font-size: 0.75rem; color: var(--muted); }
+.meter--big { height: 10px; margin-top: 0.5rem; }
+.res-graphs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+.res-graphs canvas {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 0.5rem;
+  width: 100%;
+}
+
+/* --- Панель логов (во всю ширину, внизу) --- */
+.logpanel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
   background: #141110;
+  border-top: 1px solid var(--off);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.3);
+}
+.logpanel__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  background: #1c1a18;
+}
+.logpanel__title {
+  color: #d8d2ca;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.logpanel__filter { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.72rem; }
+.logpanel__filter input[type="text"] {
+  width: 150px;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--off);
+  background: #141110;
+  color: #e0dbd3;
+  font-size: 0.72rem;
+}
+.logpanel__live { display: flex; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.72rem; }
+.logpanel__live input { width: auto; }
+.logpanel__clear {
+  margin-left: auto;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  border: none;
+  background: #3a3532;
+  color: #d8d2ca;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.logpanel__output {
+  height: 140px;
+  overflow: auto;
   color: #d8d2ca;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   line-height: 1.45;
-  padding: 0.6rem 0.75rem;
-  border-radius: 10px;
-  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
   white-space: pre;
 }
-.logs-dialog menu { margin: 0; }
+.logpanel.logpanel--min .logpanel__output { display: none; }
 
 /* --- Виджет «Система» (дашборд) --- */
 .sys-widget {
