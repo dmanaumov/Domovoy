@@ -30,10 +30,16 @@ function loadOrCreateLocalToken() {
   return token;
 }
 
+const localToken = loadOrCreateLocalToken();
+
 export const config = {
   port: Number(process.env.PORT || 3000),
   mqttUrl: process.env.MQTT_URL || 'mqtt://localhost:1883',
-  localToken: loadOrCreateLocalToken(),
+  localToken,
   relayUrl: process.env.RELAY_URL || '', // например wss://domovoy.example.com — пусто = релей выключен
-  relayToken: process.env.RELAY_TOKEN || '',
+  // Раньше это был отдельный секрет. Теперь по умолчанию — тот же самый
+  // LOCAL_TOKEN: для пользователя это один ключ доступа к конкретному дому,
+  // а не два разных токена, которые надо держать в голове синхронизированными.
+  // Задать отдельно (RELAY_TOKEN в .env) по-прежнему можно, если понадобится.
+  relayToken: process.env.RELAY_TOKEN || localToken,
 };

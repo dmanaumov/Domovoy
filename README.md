@@ -20,7 +20,8 @@ MQTT и логика устройств живут **только дома**. Н
    (в нём `build.context: ..` — сборка идёт из корня репозитория, потому что образу нужен `../web`, общий с домашним сервером).
 3. Environment (переменные) — на основе `cloud-relay/.env.example`:
    - `PORT=8080`
-   - `RELAY_TOKEN` — придумать секрет, он же пойдёт в `.env` домашнего сервера.
+   - `RELAY_TOKEN` — не отдельный секрет, а тот же `LOCAL_TOKEN`, что и у домашнего сервера
+     (см. ниже) — это и есть ключ доступа к конкретному дому.
    - Токен для веб-клиента вводить не нужно — каждое устройство регистрируется в облаке
      само при первом запуске (см. `docs/ARCHITECTURE.md`, раздел «Аутентификация»).
      Список зарегистрированных устройств: `GET /api/installations` (Bearer `RELAY_TOKEN`).
@@ -32,7 +33,10 @@ MQTT и логика устройств живут **только дома**. Н
 
 1. `git clone` этот репозиторий на домашний сервер.
 2. `cd local-server`
-3. `cp .env.example .env` и заполнить: `LOCAL_TOKEN`, `RELAY_URL` (адрес облачного релея, `wss://...`), `RELAY_TOKEN` (тот же, что в облаке).
+3. `cp .env.example .env` и заполнить: `LOCAL_TOKEN` (можно не задавать — сервер сам сгенерирует
+   при первом запуске, см. лог), `RELAY_URL` (адрес облачного релея, `wss://...`). `RELAY_TOKEN`
+   отдельно задавать не нужно — по умолчанию используется тот же `LOCAL_TOKEN`; именно его и
+   нужно поставить в Dokploy у `cloud-relay` как `RELAY_TOKEN`.
 4. `cp devices.example.json devices.json` и заполнить реальными устройствами (см. ниже).
 5. `docker compose up -d --build`
 6. Открыть `http://<IP-адрес-сервера>:3000` в браузере локальной сети — должен появиться список устройств.
@@ -48,7 +52,10 @@ MQTT и логика устройств живут **только дома**. Н
 QNAP Container Station держит собственный Docker-демон, доступный по сети напрямую через **Docker Remote API** (TLS, порт 2376) — это включено на NAS по умолчанию, если работает Container Station. Значит можно подключить `docker` со своего компьютера прямо к NAS и собирать/запускать образы без ssh и без docker save/load.
 
 1. На NAS включить SSH (Control Panel → Network & File Services → Telnet/SSH) — нужен только для одноразового копирования сертификатов, дальше не понадобится.
-2. `cp local-server/.env.example local-server/.env` и заполнить `LOCAL_TOKEN`, `RELAY_URL`, `RELAY_TOKEN` (`RELAY_TOKEN` должен совпадать с тем, что задан в Dokploy для `cloud-relay`).
+2. `cp local-server/.env.example local-server/.env` и заполнить `LOCAL_TOKEN` (или оставить
+   пустым — сервер сгенерирует сам) и `RELAY_URL`. `RELAY_TOKEN` отдельно не задаём — он по
+   умолчанию равен `LOCAL_TOKEN`; именно это значение нужно поставить в Dokploy у `cloud-relay`
+   как `RELAY_TOKEN`.
 3. Один раз:
    ```bash
    ./scripts/setup-nas-docker-context.sh admin@<IP-адрес-NAS>
