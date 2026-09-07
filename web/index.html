@@ -30,6 +30,7 @@
 
   <button id="settings-btn" class="settings-btn" title="Настройки подключения">⚙</button>
   <button id="admin-btn" class="settings-btn admin-btn" title="Администрирование: eWeLink и устройства">АДМИНИСТРАТОР</button>
+  <button id="logs-btn" class="settings-btn logs-btn" title="Логи сервера">ЛОГИ</button>
   <button id="share-btn" class="settings-btn share-btn" title="Показать QR для другого устройства">⇄</button>
   <span id="version" class="version"></span>
 
@@ -97,6 +98,25 @@
     <div id="admin-result" class="hint"></div>
     <menu>
       <button id="admin-close" value="default">Закрыть</button>
+    </menu>
+  </dialog>
+
+  <dialog id="logs-dialog" class="logs-dialog">
+    <div class="logs-header">
+      <h2>Логи сервера</h2>
+      <div class="logs-tools">
+        <label class="logs-filter">Поиск
+          <input type="text" id="logs-filter" placeholder="фильтровать…" />
+        </label>
+        <label class="logs-filter">
+          <input type="checkbox" id="logs-live" checked /> автопрокрутка
+        </label>
+      </div>
+    </div>
+    <pre id="logs-output" class="logs-output"></pre>
+    <menu>
+      <button type="button" id="logs-clear">Очистить</button>
+      <button id="logs-close" value="default">Закрыть</button>
     </menu>
   </dialog>
 

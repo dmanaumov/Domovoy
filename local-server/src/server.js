@@ -3,7 +3,9 @@ import { WebSocketServer } from 'ws';
 import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { config } from './config.js';
+import { initLogBuffer, logBus } from './log-buffer.js';
 import pkg from '../package.json' with { type: 'json' };
 
 // Версия сборки: GH Actions задаёт APP_VERSION = 0.1.<число коммитов>.
@@ -52,6 +54,7 @@ const hub = createHub(registry);
 // 1) mDNS-скан -> что есть в локальной сети
 // 2) логин eWeLink -> devicekey и имена для найденных deviceid
 async function bootstrap() {
+  logBuffer = initLogBuffer();
   const session = loadSession();
   if (session?.at && session?.appid) {
     registry.setCloudSession(session);
@@ -141,6 +144,17 @@ app.get('/api/devices', checkToken, (_req, res) => {
   res.json({ devices: hub.listDevices() });
 });
 
+// Логи сервера (последние N строк). Без токена тоже можно — утечки нет,
+// но чтобы не плодить открытые endpoint'ы, закрываем той же проверкой.
+app.get('/api/logs', checkToken, (_req, res) => {
+  res.json({ lines: logBuffer.lines() });
+});
+
+// Метрики системы для дашборда.
+app.get('/api/status', checkToken, (_req, res) => {
+  res.json(collectStatus());
+});
+
 app.post('/api/devices/:id/power', checkToken, async (req, res) => {
   const { id } = req.params;
   const action = (req.body?.action || '').toUpperCase();
@@ -161,6 +175,50 @@ app.post('/api/devices/:id/power', checkToken, async (req, res) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
+// --- метрики системы (uptime, RAM, CPU) для виджета «Система» ---
+function collectStatus() {
+  const mem = os.totalmem();
+  const cpus = os.cpus();
+  // средняя загрузка за 1 мин приходит от os.loadavg() только на *nix;
+  // на Windows вернёт 0-подобные значения — это ок, не критично.
+  return {
+    version: APP_VERSION,
+    node: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    uptime: process.uptime(),        // сек, с момента старта процесса
+    hostUptime: os.uptime(),         // сек, аптайм ОС
+    load: os.loadavg(),
+    cpus: cpus.length,
+    cpuModel: cpus[0]?.model || '',
+    mem: {
+      total: mem,
+      free: os.freemem(),
+      // прикидка «используемой» памяти процессом + система
+      used: mem - os.freemem(),
+    },
+  };
+}
+
+function broadcastNewLogLine(line) {
+  const payload = JSON.stringify({ type: 'logs', lines: [line], reset: false });
+  wss.clients.forEach((client) => {
+    if (client.readyState === client.OPEN) client.send(payload);
+  });
+}
+
+// Каждую новую строку лога пересылаем всем подключённым клиентам (append).
+// Полный кеп (snapshot) клиент получает один раз при подключении.
+let logBuffer = { lines: () => [] };
+logBus.on('line', (line) => broadcastNewLogLine(line));
+
+wss.on('connection', (ws) => {
+  // при новом подключении отдаём и текущие устройства, и кеп логов
+  ws.send(JSON.stringify({ type: 'state', devices: hub.listDevices() }));
+  ws.send(JSON.stringify({ type: 'logs', lines: logBuffer.lines(), reset: true }));
+  ws.send(JSON.stringify({ type: 'status', status: collectStatus() }));
+});
+
 function broadcastState() {
   const payload = JSON.stringify({ type: 'state', devices: hub.listDevices() });
   wss.clients.forEach((client) => {
@@ -168,11 +226,15 @@ function broadcastState() {
   });
 }
 
-wss.on('connection', (ws) => {
-  ws.send(JSON.stringify({ type: 'state', devices: hub.listDevices() }));
-});
-
 hub.on('change', broadcastState);
+
+// Периодически обновляем метрики в дашборде (раз в 5 сек).
+setInterval(() => {
+  const payload = JSON.stringify({ type: 'status', status: collectStatus() });
+  wss.clients.forEach((client) => {
+    if (client.readyState === client.OPEN) client.send(payload);
+  });
+}, 5000);
 
 connectRelay(hub);
 

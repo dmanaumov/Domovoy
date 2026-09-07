@@ -51,7 +51,6 @@ const settings = {
 
 const statusEl = document.getElementById('status');
 const devicesEl = document.getElementById('devices');
-const devicesHintEl = document.getElementById('devices-hint');
 const discoverBtn = document.getElementById('discover-btn');
 let mode = 'local'; // 'local' | 'cloud' — от mode зависит, что показываем
 document.getElementById('version').textContent = `v${APP_VERSION}`;
@@ -76,9 +75,12 @@ function setStatus(mode) {
 }
 
 function showHint(text, { showDiscover = false } = {}) {
+  widgetPatches = {};
   devicesEl.innerHTML = '';
-  devicesHintEl.textContent = text;
-  devicesEl.append(devicesHintEl);
+  const hint = document.createElement('p');
+  hint.className = 'hint';
+  hint.textContent = text;
+  devicesEl.append(hint);
   // mDNS-поиск и eWeLink живут на ЛОКАЛЬНОМ сервере — в облаке их не показываем
   discoverBtn.hidden = !showDiscover || mode !== 'local';
 }
@@ -123,18 +125,19 @@ function buildDeviceCard(device, onToggle) {
 }
 
 function renderDevices(devices, onToggle) {
-  // ПЕРЕД рисовкой всегда очищаем контейнер — иначе каждый rerender (connect раз в 15с)
-  // дописывает ещё одну полную пачку карточек к уже существующим.
-  devicesEl.innerHTML = '';
+  const root = document.createElement('div');
+  root.className = 'devices-inner';
+  discoverBtn.hidden = true;
 
   if (!devices?.length) {
-    showHint(
-      'Устройства не найдены. Найди их в сети (mDNS) или настрой eWeLink — это даст устройствам имена и ключи управления.',
-      { showDiscover: true },
-    );
-    return;
+    root.innerHTML = '';
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Устройства не найдены. Найди их в сети (mDNS) или настрой eWeLink — это даст устройствам имена и ключи управления.';
+    root.append(hint);
+    discoverBtn.hidden = false;
+    return root;
   }
-  discoverBtn.hidden = true;
 
   // Деление по домам и комнатам: группируем из метаданных облака eWeLink.
   const homes = new Map(); // homeName -> roomName -> [device]
@@ -167,8 +170,9 @@ function renderDevices(devices, onToggle) {
         homeSection.append(buildDeviceCard(device, onToggle));
       }
     }
-    devicesEl.append(homeSection);
+    root.append(homeSection);
   }
+  return root;
 }
 
 async function tryLocal(localUrl, timeoutMs = 800) {
@@ -201,10 +205,11 @@ class LocalConnection {
     this.ws = new WebSocket(this.baseUrl.replace(/^http/, 'ws') + '/ws');
   }
 
-  onUpdate(cb) {
+  onMessage(cb) {
     this.ws.addEventListener('message', (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === 'state') cb(msg.devices);
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      cb(msg);
     });
   }
 
@@ -301,9 +306,225 @@ class CloudConnection {
 let currentConn = null;
 let currentDevices = [];
 
-function rerender() {
-  renderDevices(currentDevices, (id, action) => currentConn?.sendCommand(id, action));
+const WIDGETS = {
+  devices: { title: 'Устройства', build: renderDevicesWidget },
+  system: { title: 'Система', build: renderSystemWidget },
+};
+const DASH_KEY = 'domovoy.dashboard';
+
+function loadWidgetOrder() {
+  try {
+    const order = JSON.parse(localStorage.getItem(DASH_KEY));
+    if (Array.isArray(order) && order.length) return order.filter((id) => WIDGETS[id]);
+  } catch { /* битый кеш */ }
+  return Object.keys(WIDGETS);
 }
+function saveWidgetOrder(order) {
+  localStorage.setItem(DASH_KEY, JSON.stringify(order));
+}
+let widgetOrder = loadWidgetOrder();
+
+// текущее состояние метрик системы (последнее пришедшее по WS)
+let sysStatus = null;
+
+function renderDevicesWidget() {
+  return renderDevices(currentDevices, (id, action) => currentConn?.sendCommand(id, action));
+}
+
+function renderSystemWidget() {
+  const host = document.createElement('div');
+  host.className = 'sys-widget';
+  const s = sysStatus;
+  host.append(
+    metricEl('Версия', s?.version || '…', `node ${s?.node || ''}`),
+    metricEl('Аптайм', s ? formatUptime(s.uptime) : '…', 'сервер',
+      () => meterEl(s ? 0 : 0)),
+    metricEl('Память', s?.mem ? `${fmtBytes(s.mem.free)} / ${fmtBytes(s.mem.total)}` : '…',
+      s?.mem ? `${pct(s.mem.used, s.mem.total)}% занято` : ''),
+    metricEl('Нагрузка CPU', s?.load?.length ? s.load.map((v) => v.toFixed(2)).join(' / ') : '…',
+      `${s?.cpus || '?'} ядер`,
+      () => meterEl(s?.load?.[0] != null ? Math.min(100, Math.round((s.load[0] / (s?.cpus || 1)) * 100)) : 0)),
+  );
+  return host;
+}
+
+function metricEl(label, value, sub = '', meter) {
+  const wrap = document.createElement('div');
+  wrap.className = 'sys-metric';
+  const l = document.createElement('div');
+  l.className = 'sys-metric__label';
+  l.textContent = label;
+  const v = document.createElement('div');
+  v.className = 'sys-metric__value';
+  v.textContent = value;
+  wrap.append(l, v);
+  if (sub) {
+    const s = document.createElement('div');
+    s.className = 'sys-metric__sub';
+    s.textContent = sub;
+    wrap.append(s);
+  }
+  if (meter) wrap.append(meter());
+  return wrap;
+}
+function meterEl(percent) {
+  const m = document.createElement('div');
+  m.className = 'meter';
+  const bar = document.createElement('span');
+  bar.style.width = `${Math.max(2, Math.min(100, percent))}%`;
+  m.append(bar);
+  return m;
+}
+function pct(part, total) { return total ? Math.round((part / total) * 100) : 0; }
+function fmtBytes(n) {
+  if (n == null) return '…';
+  const u = ['Б', 'КБ', 'МБ', 'ГБ'];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(n >= 10 ? 0 : 1)} ${u[i]}`;
+}
+function formatUptime(sec) {
+  sec = Math.floor(sec);
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  if (d > 0) return `${d}д ${h}ч`;
+  if (h > 0) return `${h}ч ${m}м`;
+  return `${m}м ${sec % 60}с`;
+}
+
+function buildWidgetCard(id) {
+  const w = WIDGETS[id];
+  const card = document.createElement('section');
+  card.className = 'dash-widget';
+  card.dataset.widget = id;
+
+  const title = document.createElement('div');
+  title.className = 'dash-widget__title';
+  const label = document.createElement('span');
+  label.textContent = w.title;
+  const more = document.createElement('button');
+  more.className = 'dash-widget__menu';
+  more.setAttribute('aria-label', `Меню виджета ${w.title}`);
+  more.textContent = '⋯';
+  more.addEventListener('click', (e) => openWidgetMenu(id, more));
+  title.append(label, more);
+  card.append(title);
+
+  const body = document.createElement('div');
+  body.append(w.build());
+  card.append(body);
+  return { card, body };
+}
+
+function openWidgetMenu(id, anchor) {
+  const existing = document.querySelector('.dash-menu');
+  if (existing) existing.remove();
+
+  const menu = document.createElement('div');
+  menu.className = 'dash-menu';
+  const pos = widgetOrder.indexOf(id);
+  const up = document.createElement('button');
+  up.disabled = pos <= 0;
+  up.textContent = '↑ вверх';
+  up.addEventListener('click', () => { moveWidget(id, -1); menu.remove(); });
+  const down = document.createElement('button');
+  down.disabled = pos >= widgetOrder.length - 1;
+  down.textContent = '↓ вниз';
+  down.addEventListener('click', () => { moveWidget(id, 1); menu.remove(); });
+  const hide = document.createElement('button');
+  hide.textContent = 'скрыть';
+  hide.addEventListener('click', () => { toggleWidget(id); menu.remove(); });
+  menu.append(up, down, hide);
+  anchor.after(menu);
+  menu.style.position = 'fixed';
+  const r = anchor.getBoundingClientRect();
+  menu.style.top = `${r.bottom + 4}px`;
+  menu.style.left = `${Math.max(4, r.left - 40)}px`;
+  const dismiss = (ev) => { if (!menu.contains(ev.target) && ev.target !== anchor) { menu.remove(); document.removeEventListener('click', dismiss); } };
+  setTimeout(() => document.addEventListener('click', dismiss), 0);
+}
+
+function moveWidget(id, delta) {
+  const i = widgetOrder.indexOf(id);
+  const j = i + delta;
+  if (j < 0 || j >= widgetOrder.length) return;
+  [widgetOrder[i], widgetOrder[j]] = [widgetOrder[j], widgetOrder[i]];
+  saveWidgetOrder(widgetOrder);
+  rerender();
+}
+function toggleWidget(id) {
+  if (widgetOrder.length === 1) return; // не даём скрыть последний
+  widgetOrder = widgetOrder.filter((w) => w !== id);
+  saveWidgetOrder(widgetOrder);
+  rerender();
+}
+
+let widgetPatches = {}; // id -> () => перерисовать «живое» содержимое виджета
+function renderDashboard() {
+  devicesEl.innerHTML = '';
+  discoverBtn.hidden = true;
+  widgetPatches = {};
+  widgetOrder.forEach((id) => {
+    const { card, body } = buildWidgetCard(id);
+    widgetPatches[id] = () => { body.innerHTML = ''; body.append(WIDGETS[id].build()); };
+    devicesEl.append(card);
+    widgetPatches[id]();
+  });
+}
+
+// Перерисовывает «живой» контент (устройства, система) без пересоздания каркаса.
+function rerender() {
+  if (Object.keys(widgetPatches).length) {
+    widgetOrder.forEach((id) => widgetPatches[id]?.());
+    return;
+  }
+  renderDashboard();
+}
+function setSystemStatus(status) {
+  sysStatus = status;
+  widgetPatches['system']?.();
+  // одновременно обновляем версию сервера в шапке, если она вдруг изменилась
+  if (status?.version) updateVersionLabel(status.version);
+}
+
+// --- ЛОГИ ---
+const logsOutputEl = document.getElementById('logs-output');
+const logsFilterEl = document.getElementById('logs-filter');
+const logsLiveEl = document.getElementById('logs-live');
+let allLogLines = [];
+let logsVisible = false;
+
+function handleLogLines(lines, reset) {
+  if (reset) allLogLines = [];
+  allLogLines.push(...lines);
+  if (allLogLines.length > 2000) allLogLines = allLogLines.slice(-2000);
+  if (logsVisible) applyLogFilter();
+}
+
+function applyLogFilter() {
+  const q = logsFilterEl.value.trim().toLowerCase();
+  const shown = q ? allLogLines.filter((l) => l.toLowerCase().includes(q)) : allLogLines;
+  logsOutputEl.textContent = shown.length ? shown.join('\n') : '(нет совпадений)';
+  if (logsLiveEl.checked) logsOutputEl.scrollTop = logsOutputEl.scrollHeight;
+}
+
+document.getElementById('logs-btn').addEventListener('click', () => {
+  const dialog = document.getElementById('logs-dialog');
+  logsVisible = true;
+  applyLogFilter();
+  dialog.showModal();
+});
+
+document.getElementById('logs-close').addEventListener('click', () => {
+  logsVisible = false;
+  document.getElementById('logs-dialog').close();
+});
+document.getElementById('logs-clear').addEventListener('click', () => {
+  allLogLines = [];
+  logsOutputEl.textContent = '';
+});
+logsFilterEl.addEventListener('input', applyLogFilter);
+logsFilterEl.addEventListener('focus', () => { logsLiveEl.checked = false; });
+
 
 async function connect() {
   currentConn?.close();
@@ -315,8 +536,13 @@ async function connect() {
     mode = 'local';
     updateVersionLabel(localVer);
     document.getElementById('admin-btn').hidden = false;
+    document.getElementById('logs-btn').hidden = false;
     currentConn = new LocalConnection(settings.localUrl, settings.token);
-    currentConn.onUpdate((devices) => { currentDevices = devices; rerender(); });
+    currentConn.onMessage((msg) => {
+      if (msg.type === 'state') { currentDevices = msg.devices; rerender(); }
+      if (msg.type === 'logs') handleLogLines(msg.lines, msg.reset);
+      if (msg.type === 'status') setSystemStatus(msg.status);
+    });
     // первичная загрузка через REST, дальше — по WS
     try {
       const res = await fetch(`${settings.localUrl.replace(/\/$/, '')}/api/devices`, {
@@ -342,6 +568,7 @@ async function connect() {
   // В облаке eWeLink/mDNS настраивается ТОЛЬКО на локальном сервере —
   // тут админка не нужна, показываем лишь то, что шлёт локальный сервер.
   document.getElementById('admin-btn').hidden = true;
+  document.getElementById('logs-btn').hidden = true;
   currentConn.onUpdate(
     (devices) => { currentDevices = devices; rerender(); },
     (online) => setStatus(online ? 'cloud' : 'offline'),
